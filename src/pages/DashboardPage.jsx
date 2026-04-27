@@ -26,7 +26,7 @@ function formatDateTimeParts(isoLike) {
   }
 }
 
-export default function DashboardPage() {
+export default function DashboardPage({ offlineRevision = 0 }) {
   const [products, setProducts] = useState(null);
   const [sales, setSales] = useState(null);
   const [productsError, setProductsError] = useState("");
@@ -92,7 +92,7 @@ export default function DashboardPage() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [offlineRevision]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -109,7 +109,7 @@ export default function DashboardPage() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [offlineRevision]);
 
   return (
     <section className="page">

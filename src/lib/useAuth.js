@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as authApi from "../api/auth.js";
 import { clearTokens, getRefreshToken, setTokens } from "./authTokens.js";
+import { clearOfflineActor, setOfflineActor } from "./offlinePos.js";
 
 const AUTH_LOGOUT_EVENT = "tone:auth:logout";
 
@@ -13,11 +14,13 @@ export function useAuth() {
     try {
       const data = await authApi.me({ signal });
       setUser(data?.user || null);
+      setOfflineActor(data?.user || null);
       setError("");
       return data?.user || null;
     } catch (err) {
       // If not logged in / tokens expired, treat as signed out.
       setUser(null);
+      clearOfflineActor();
       setError("");
       return null;
     }
@@ -53,6 +56,7 @@ export function useAuth() {
       setTokens({ accessToken: String(data.accessToken), refreshToken: String(data.refreshToken) });
     }
     setUser(data?.user || null);
+    setOfflineActor(data?.user || null);
     return data;
   }, []);
 
@@ -63,6 +67,7 @@ export function useAuth() {
       setTokens({ accessToken: String(data.accessToken), refreshToken: String(data.refreshToken) });
     }
     setUser(data?.user || null);
+    setOfflineActor(data?.user || null);
     return data;
   }, []);
 
@@ -76,6 +81,7 @@ export function useAuth() {
     }
     clearTokens();
     setUser(null);
+    clearOfflineActor();
   }, []);
 
   const isAdmin = useMemo(() => String(user?.role || "").toLowerCase() === "admin", [user]);

@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { createUser, deleteUser, listUsers, updateUser } from "../api/users.js";
+import { listProductsOnline } from "../api/products.js";
+import { createSaleOnline, listSalesOnline } from "../api/sales.js";
+import { getOpenShiftOnline } from "../api/shifts.js";
 import { PencilIcon, PlusIcon, TrashIcon } from "../components/icons/Icons.jsx";
 import Modal from "../components/ui/Modal.jsx";
+import {
+  clearOfflineSyncError,
+  getPendingOfflineSales,
+  markOfflineSyncResult,
+  replaceOfflineSnapshotAfterSync,
+  saveOfflineSnapshot,
+  setOfflineModeActive,
+} from "../lib/offlinePos.js";
 import {
   BT_PRINTER_ADDRESS_KEY,
   connectPrinter,
@@ -23,7 +34,7 @@ function formatDateTimeParts(isoLike) {
   }
 }
 
-export default function SettingsPage({ theme, onToggleTheme, search, onSearchChange, me, onLogout }) {
+export default function SettingsPage({ theme, onToggleTheme, search, onSearchChange, me, onLogout, offlineMeta, offlineRevision }) {
   const apiBase = (import.meta.env.VITE_API_BASE_URL || "").trim() || "(using /api proxy)";
   const androidNative = isNativeAndroid();
   const isAdmin = useMemo(() => String(me?.role || "").toLowerCase() === "admin", [me]);
@@ -48,6 +59,81 @@ export default function SettingsPage({ theme, onToggleTheme, search, onSearchCha
   });
   const [btBusy, setBtBusy] = useState(false);
   const [btError, setBtError] = useState("");
+  const [offlineBusy, setOfflineBusy] = useState(false);
+  const [offlineMessage, setOfflineMessage] = useState("");
+  const pendingOfflineSales = useMemo(() => getPendingOfflineSales(), [offlineRevision]);
+  const offlineModeActive = Boolean(offlineMeta?.offlineModeActive);
+
+  const downloadOfflineBundle = async () => {
+    setOfflineBusy(true);
+    setOfflineMessage("");
+    clearOfflineSyncError();
+    try {
+      const [products, sales, openShift] = await Promise.all([
+        listProductsOnline(),
+        listSalesOnline({ limit: 2000 }),
+        getOpenShiftOnline(),
+      ]);
+
+      if (!openShift?.id) {
+        throw new Error("Open the cashier shift first, then download offline data.");
+      }
+
+      saveOfflineSnapshot({ products, sales, openShift, actor: me });
+      setOfflineMessage("Offline data downloaded to this device.");
+    } catch (err) {
+      setOfflineMessage(err?.message || "Failed to download offline data.");
+    } finally {
+      setOfflineBusy(false);
+    }
+  };
+
+  const startOfflineMode = () => {
+    setOfflineMessage("");
+    try {
+      setOfflineModeActive(true);
+      setOfflineMessage("Offline mode is now active. New sales will stay on this device until you sync.");
+    } catch (err) {
+      setOfflineMessage(err?.message || "Failed to start offline mode.");
+    }
+  };
+
+  const syncOfflineMode = async () => {
+    if (pendingOfflineSales.length === 0) {
+      setOfflineMessage("");
+      try {
+        setOfflineModeActive(false);
+        setOfflineMessage("Offline mode turned off. There were no pending sales to upload.");
+      } catch (err) {
+        setOfflineMessage(err?.message || "Failed to exit offline mode.");
+      }
+      return;
+    }
+
+    setOfflineBusy(true);
+    setOfflineMessage("");
+    clearOfflineSyncError();
+
+    try {
+      for (const item of pendingOfflineSales.slice().reverse()) {
+        await createSaleOnline(item.payload);
+      }
+
+      const [products, sales, openShift] = await Promise.all([
+        listProductsOnline(),
+        listSalesOnline({ limit: 2000 }),
+        getOpenShiftOnline(),
+      ]);
+
+      replaceOfflineSnapshotAfterSync({ products, sales, openShift });
+      setOfflineMessage("Offline sales uploaded successfully and offline mode has been closed.");
+    } catch (err) {
+      markOfflineSyncResult({ lastSyncError: err?.message || "Sync failed." });
+      setOfflineMessage(err?.message || "Failed to sync offline sales.");
+    } finally {
+      setOfflineBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!isAdmin) {
@@ -259,6 +345,48 @@ export default function SettingsPage({ theme, onToggleTheme, search, onSearchCha
           <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>
             <strong>VITE_API_BASE_URL</strong>: {apiBase}
           </p>
+        </div>
+
+        <div className="card col-6">
+          <div className="card-header">
+            <h3>Offline Mode</h3>
+          </div>
+          <p style={{ margin: "0 0 12px", color: "var(--muted)", fontSize: 13 }}>
+            Download the current catalog and shift data, keep selling on Android without internet, then sync the queued sales back to the server.
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+            <span className={`badge ${offlineModeActive ? "warn" : "ok"}`}>
+              {offlineModeActive ? "Offline Active" : "Online"}
+            </span>
+            <span className={`badge ${pendingOfflineSales.length > 0 ? "warn" : ""}`}>
+              {pendingOfflineSales.length} pending sale{pendingOfflineSales.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <div style={{ color: "var(--muted)", fontSize: 12, marginBottom: 12 }}>
+            Downloaded: {offlineMeta?.downloadedAt ? new Date(offlineMeta.downloadedAt).toLocaleString() : "Not yet"}
+          </div>
+          <div style={{ color: "var(--muted)", fontSize: 12, marginBottom: 12 }}>
+            Last sync: {offlineMeta?.lastSyncAt ? new Date(offlineMeta.lastSyncAt).toLocaleString() : "Not yet"}
+          </div>
+          {offlineMeta?.lastSyncError ? <div className="banner" style={{ marginBottom: 12 }}>{offlineMeta.lastSyncError}</div> : null}
+          {offlineMessage ? <div className="banner" style={{ marginBottom: 12 }}>{offlineMessage}</div> : null}
+          <div className="field-row">
+            <button className="btn" type="button" onClick={downloadOfflineBundle} disabled={offlineBusy || offlineModeActive}>
+              {offlineBusy && !offlineModeActive ? "Downloading..." : "Download Data"}
+            </button>
+            <button
+              className="btn primary"
+              type="button"
+              onClick={offlineModeActive ? syncOfflineMode : startOfflineMode}
+              disabled={offlineBusy || (!offlineModeActive && !offlineMeta?.hasSnapshot)}
+            >
+              {offlineBusy && offlineModeActive
+                ? "Syncing..."
+                : offlineModeActive
+                  ? "Sync and Exit"
+                  : "Start Offline"}
+            </button>
+          </div>
         </div>
 
         <div className="card col-6">

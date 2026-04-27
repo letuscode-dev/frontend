@@ -9,9 +9,12 @@ export default function ProductsPage({
   onOpenAddProduct,
   onCloseAddProduct,
   me,
+  offlineRevision,
+  offlineMeta,
 }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const isAdmin = String(me?.role || "").toLowerCase() === "admin";
+  const offlineModeActive = Boolean(offlineMeta?.offlineModeActive);
 
   return (
     <section className="page">
@@ -22,7 +25,7 @@ export default function ProductsPage({
         </div>
 
         {isAdmin ? (
-          <button className="btn primary" type="button" onClick={onOpenAddProduct}>
+          <button className="btn primary" type="button" onClick={onOpenAddProduct} disabled={offlineModeActive}>
             <span style={{ display: "inline-flex", gap: 10, alignItems: "center" }}>
               <PlusIcon className="nav-icon" />
               Add Product
@@ -30,6 +33,12 @@ export default function ProductsPage({
           </button>
         ) : null}
       </div>
+
+      {offlineModeActive && isAdmin ? (
+        <div className="banner" style={{ marginBottom: 12 }}>
+          Product management stays online-only. Offline mode uses the downloaded catalog as read-only stock data.
+        </div>
+      ) : null}
 
       <div className="field-row" style={{ marginBottom: 14 }}>
         <div className="field" style={{ minWidth: 260, flex: "1 1 320px" }}>
@@ -59,7 +68,8 @@ export default function ProductsPage({
         addProductOpen={addProductOpen}
         onOpenAddProduct={onOpenAddProduct}
         onCloseAddProduct={onCloseAddProduct}
-        canManage={isAdmin}
+        refreshKey={offlineRevision}
+        canManage={isAdmin && !offlineModeActive}
       />
     </section>
   );

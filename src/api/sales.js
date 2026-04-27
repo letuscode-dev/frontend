@@ -1,6 +1,12 @@
 import { requestJson } from "./http.js";
+import {
+  getOfflineSaleById,
+  getOfflineSales,
+  isOfflineModeActive,
+  queueOfflineSale,
+} from "../lib/offlinePos.js";
 
-export function listSales({ from, to, limit, signal } = {}) {
+export function listSalesOnline({ from, to, limit, signal } = {}) {
   const params = new URLSearchParams();
   if (from) params.set("from", String(from));
   if (to) params.set("to", String(to));
@@ -9,11 +15,40 @@ export function listSales({ from, to, limit, signal } = {}) {
   return requestJson(`/api/sales${qs ? `?${qs}` : ""}`, { signal });
 }
 
+export function listSales({ from, to, limit, signal } = {}) {
+  if (isOfflineModeActive()) {
+    return Promise.resolve(getOfflineSales({ from, to, limit }));
+  }
+  return listSalesOnline({ from, to, limit, signal });
+}
+
 export function getSaleById(id, { signal } = {}) {
+  if (isOfflineModeActive()) {
+    try {
+      return Promise.resolve(getOfflineSaleById(id));
+    } catch (err) {
+      return Promise.reject(err);
+    }
+  }
   return requestJson(`/api/sales/${id}`, { signal });
 }
 
 export function createSale(payload) {
+  if (isOfflineModeActive()) {
+    try {
+      return Promise.resolve(queueOfflineSale(payload));
+    } catch (err) {
+      return Promise.reject(err);
+    }
+  }
+  return requestJson("/api/sales", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createSaleOnline(payload) {
   return requestJson("/api/sales", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

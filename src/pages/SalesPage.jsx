@@ -77,8 +77,9 @@ function buildReceiptText(receipt) {
   return lines.filter((l) => l !== null && l !== undefined).join("\n").trim() + "\n";
 }
 
-export default function SalesPage({ search, me }) {
+export default function SalesPage({ search, me, offlineRevision = 0, offlineMeta }) {
   const androidNative = isNativeAndroid();
+  const offlineModeActive = Boolean(offlineMeta?.offlineModeActive);
   const [products, setProducts] = useState(null);
   const [sales, setSales] = useState(null);
   const [loadError, setLoadError] = useState("");
@@ -134,7 +135,7 @@ export default function SalesPage({ search, me }) {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [offlineRevision]);
 
   const reloadSales = ({ from = salesFrom, to = salesTo, limit = salesLimit } = {}) => {
     setSalesLoading(true);
@@ -360,7 +361,7 @@ export default function SalesPage({ search, me }) {
     fetchShift({ signal: controller.signal });
 
     return () => controller.abort();
-  }, [me?.id]);
+  }, [me?.id, offlineRevision]);
 
   const completeSale = (e) => {
     e.preventDefault();
@@ -500,6 +501,10 @@ export default function SalesPage({ search, me }) {
 
   const openEditForSale = (saleId) => {
     if (!isAdmin) return;
+    if (offlineModeActive) {
+      setSubmitError("Sync offline sales first before editing existing sales.");
+      return;
+    }
 
     setEditError("");
     setEditBusy(true);
@@ -786,6 +791,11 @@ export default function SalesPage({ search, me }) {
 
       {loadError ? <div className="banner" style={{ marginBottom: 12 }}>{loadError}</div> : null}
       {submitError ? <div className="banner" style={{ marginBottom: 12 }}>{submitError}</div> : null}
+      {offlineModeActive ? (
+        <div className="banner" style={{ marginBottom: 12 }}>
+          Offline mode is active. New sales are queued on this device and shift cash-up stays locked until you sync in Settings.
+        </div>
+      ) : null}
 
       <div className="grid">
         <div className="card col-7">
@@ -912,7 +922,7 @@ export default function SalesPage({ search, me }) {
                       onChange={(e) => setClosingCash(e.target.value)}
                       placeholder="0.00"
                     />
-                    <button className="btn primary" type="button" onClick={doCloseShift} disabled={shiftBusy}>
+                    <button className="btn primary" type="button" onClick={doCloseShift} disabled={shiftBusy || offlineModeActive}>
                       {shiftBusy ? "Closing..." : "Cash-up"}
                     </button>
                   </div>
@@ -933,7 +943,7 @@ export default function SalesPage({ search, me }) {
                       value={openingFloat}
                       onChange={(e) => setOpeningFloat(e.target.value)}
                     />
-                    <button className="btn" type="button" onClick={doOpenShift} disabled={shiftBusy}>
+                    <button className="btn" type="button" onClick={doOpenShift} disabled={shiftBusy || offlineModeActive}>
                       {shiftBusy ? "Opening..." : "Open Shift"}
                     </button>
                   </div>
@@ -1162,7 +1172,7 @@ export default function SalesPage({ search, me }) {
                             Print
                           </button>
                           {isAdmin ? (
-                            <button className="btn ghost" type="button" onClick={() => openEditForSale(s.id)} disabled={submitting || editBusy}>
+                            <button className="btn ghost" type="button" onClick={() => openEditForSale(s.id)} disabled={submitting || editBusy || offlineModeActive}>
                               Edit
                             </button>
                           ) : null}

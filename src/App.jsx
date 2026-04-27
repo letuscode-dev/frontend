@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AppShell from "./components/layout/AppShell.jsx";
 import Sidebar from "./components/layout/Sidebar.jsx";
 import TopBar from "./components/layout/TopBar.jsx";
@@ -12,6 +12,7 @@ import LoginPage from "./pages/LoginPage.jsx";
 import ToastStack from "./components/ui/ToastStack.jsx";
 import { useHashLocation } from "./lib/useHashLocation.js";
 import { useAuth } from "./lib/useAuth.js";
+import { getOfflineMeta, OFFLINE_POS_EVENT } from "./lib/offlinePos.js";
 import { useTheme } from "./lib/useTheme.js";
 
 function App() {
@@ -24,6 +25,15 @@ function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
   const [addProductOpen, setAddProductOpen] = useState(false);
+  const [offlineRevision, setOfflineRevision] = useState(0);
+
+  useEffect(() => {
+    const onOfflineChanged = () => setOfflineRevision((v) => v + 1);
+    window.addEventListener(OFFLINE_POS_EVENT, onOfflineChanged);
+    return () => window.removeEventListener(OFFLINE_POS_EVENT, onOfflineChanged);
+  }, []);
+
+  const offlineMeta = getOfflineMeta();
 
   const go = (path) => {
     setMobileMenuOpen(false);
@@ -36,6 +46,8 @@ function App() {
     addProductOpen,
     onCloseAddProduct: () => setAddProductOpen(false),
     me,
+    offlineRevision,
+    offlineMeta,
   };
 
   if (auth.loading) {
@@ -120,6 +132,11 @@ function App() {
           />
         }
       >
+        {offlineMeta.offlineModeActive ? (
+          <div className="banner" style={{ marginBottom: 12 }}>
+            Offline mode is active. Sales are being saved on this device and will upload when you sync.
+          </div>
+        ) : null}
         {page}
       </AppShell>
     </>
