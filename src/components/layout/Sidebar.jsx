@@ -1,5 +1,7 @@
 import {
   DashboardIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   InventoryIcon,
   PlusIcon,
   ProductsIcon,
@@ -16,7 +18,7 @@ const NAV_ITEMS = [
   { key: "sales", label: "Sales / Orders", path: "/sales", icon: SalesIcon },
   { key: "add", label: "Add Product", path: "/products", icon: PlusIcon },
   { key: "inventory", label: "Inventory", path: "/inventory", icon: InventoryIcon },
-  { key: "reports", label: "Reports", path: "/reports", icon: ReportsIcon },
+  { key: "reports", label: "All Reports", path: "/reports", icon: ReportsIcon },
   { key: "settings", label: "Settings", path: "/settings", icon: SettingsIcon },
 ];
 
@@ -91,7 +93,7 @@ export default function Sidebar({
           onClick={onToggleCollapsed}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          {collapsed ? ">" : "<"}
+          {collapsed ? <ChevronRightIcon className="nav-icon" /> : <ChevronLeftIcon className="nav-icon" />}
         </button>
         <button className="icon-btn mobile-only" type="button" onClick={onCloseMobile} aria-label="Close menu">
           <XIcon className="nav-icon" />

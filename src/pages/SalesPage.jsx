@@ -791,12 +791,6 @@ export default function SalesPage({ search, me, offlineRevision = 0, offlineMeta
 
       {loadError ? <div className="banner" style={{ marginBottom: 12 }}>{loadError}</div> : null}
       {submitError ? <div className="banner" style={{ marginBottom: 12 }}>{submitError}</div> : null}
-      {offlineModeActive ? (
-        <div className="banner" style={{ marginBottom: 12 }}>
-          Offline mode is active. New sales are queued on this device and shift cash-up stays locked until you sync in Settings.
-        </div>
-      ) : null}
-
       <div className="grid">
         <div className="card col-6 sales-panel">
           <div className="card-header">

@@ -4,23 +4,23 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
 
-  --bg: #f7fbff;
-  --bg-2: #eef6ff;
-  --surface: rgba(255, 255, 255, 0.92);
+  --bg: #f4f8fc;
+  --bg-2: #e9f1fb;
+  --surface: rgba(255, 255, 255, 0.94);
   --surface-solid: #ffffff;
-  --surface-2: rgba(255, 255, 255, 0.76);
-  --text: #0f1f3d;
-  --text-2: rgba(15, 31, 61, 0.76);
-  --muted: rgba(15, 31, 61, 0.56);
-  --border: rgba(24, 54, 99, 0.12);
-  --shadow: 0 18px 40px rgba(15, 31, 61, 0.12);
-  --shadow-soft: 0 10px 22px rgba(15, 31, 61, 0.08);
+  --surface-2: rgba(255, 255, 255, 0.78);
+  --text: #102343;
+  --text-2: rgba(16, 35, 67, 0.78);
+  --muted: rgba(16, 35, 67, 0.58);
+  --border: rgba(16, 45, 91, 0.12);
+  --shadow: 0 18px 40px rgba(16, 35, 67, 0.12);
+  --shadow-soft: 0 10px 22px rgba(16, 35, 67, 0.08);
 
-  --brand: #17b7ff;
-  --brand-2: #0f6fff;
-  --brand-ink: #11284f;
+  --brand: #1fc8ff;
+  --brand-2: #0d73ff;
+  --brand-ink: #0d2348;
   --danger: #ef4444;
-  --warning: #f59e0b;
+  --warning: #eab308;
   --ok: #118a67;
 
   --radius-lg: 18px;
@@ -43,8 +43,8 @@
 }
 
 [data-theme="dark"] {
-  --bg: #081225;
-  --bg-2: #0d1932;
+  --bg: #071426;
+  --bg-2: #0c1b34;
   --surface: rgba(14, 25, 49, 0.86);
   --surface-solid: #0f1d39;
   --surface-2: rgba(17, 31, 61, 0.66);
@@ -55,9 +55,9 @@
   --shadow: 0 22px 60px rgba(0, 0, 0, 0.5);
   --shadow-soft: 0 14px 34px rgba(0, 0, 0, 0.4);
 
-  --brand: #41c9ff;
-  --brand-2: #3d8cff;
-  --brand-ink: #06152a;
+  --brand: #4ad8ff;
+  --brand-2: #4290ff;
+  --brand-ink: #07162d;
 
   color-scheme: dark;
 }
@@ -282,6 +282,7 @@ a {
   letter-spacing: -0.8px;
   font-size: 16px;
   line-height: 1;
+  color: var(--brand-ink);
 }
 
 .topbar-search {
@@ -293,6 +294,30 @@ a {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.network-indicator {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-solid) 70%, transparent);
+  box-shadow: var(--shadow-soft);
+}
+
+.network-indicator.is-online {
+  color: var(--ok);
+}
+
+.network-indicator.is-offline {
+  color: var(--warning);
+}
+
+.network-indicator-emoji {
+  font-size: 18px;
+  line-height: 1;
 }
 
 .search {
@@ -397,6 +422,18 @@ a {
   background: color-mix(in srgb, var(--surface) 70%, transparent);
   box-shadow: var(--shadow-soft);
   padding: 16px;
+}
+
+.expense-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.expense-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
 }
 
 .sales-panel {
@@ -727,6 +764,27 @@ a {
   color: color-mix(in srgb, var(--danger) 96%, var(--text));
   font-size: 13px;
   font-weight: 600;
+}
+
+.loading-emoji {
+  display: inline-block;
+  line-height: 1;
+  animation: loading-spin 0.9s linear infinite;
+  transform-origin: center;
+}
+
+.loading-emoji-lg {
+  font-size: 40px;
+}
+
+@keyframes loading-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .toast-stack {
@@ -1126,6 +1184,11 @@ a {
     display: none;
   }
 
+  .network-indicator {
+    width: 38px;
+    height: 38px;
+  }
+
   .search {
     width: 100%;
     padding: 9px 10px;
@@ -1362,6 +1425,18 @@ a {
   grid-template-columns: 0.95fr 1.05fr;
 }
 
+.auth-card.auth-card-simple {
+  width: min(460px, 100%);
+  grid-template-columns: 1fr;
+}
+
+.auth-loading-card {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
 .auth-hero {
   position: relative;
   padding: 22px 22px 18px;
@@ -1492,6 +1567,14 @@ a {
   justify-content: center;
 }
 
+.auth-simple-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
 .auth-main-head {
   margin-bottom: 14px;
 }
@@ -1562,6 +1645,10 @@ a {
 @media (max-width: 860px) {
   .auth-card {
     grid-template-columns: 1fr;
+  }
+
+  .auth-card.auth-card-simple {
+    width: min(420px, 100%);
   }
 
   .auth-hero {

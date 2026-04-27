@@ -75,9 +75,9 @@ export default function LoginPage({ theme, onToggleTheme, onLogin, onBootstrap, 
     <div className="auth">
       <div className="auth-bg" aria-hidden="true" />
 
-      <div className="auth-card">
-        <aside className="auth-hero" aria-label="T-ONE welcome">
-          <div className="auth-hero-top">
+      <div className="auth-card auth-card-simple">
+        <section className="auth-main" aria-label="Sign in">
+          <div className="auth-simple-top">
             <div className="auth-mark" aria-hidden="true">
               T1
             </div>
@@ -86,26 +86,6 @@ export default function LoginPage({ theme, onToggleTheme, onLogin, onBootstrap, 
             </button>
           </div>
 
-          <div className="auth-hero-body">
-            <div className="auth-hero-eyebrow">T-ONE POS</div>
-            <div className="auth-hero-title">Boutique sales, done fast.</div>
-            <div className="auth-hero-sub">
-              A premium dashboard for inventory, shifts, purchases, and clean receipts.
-            </div>
-
-            <div className="auth-chips" aria-label="Highlights">
-              <span className="auth-chip">Bluetooth receipts</span>
-              <span className="auth-chip">Discount control</span>
-              <span className="auth-chip">Stock takes</span>
-            </div>
-          </div>
-
-          <div className="auth-hero-foot">
-            <div className="auth-hero-footline">Secure staff sign-in</div>
-          </div>
-        </aside>
-
-        <section className="auth-main" aria-label="Sign in">
           <div className="auth-main-head">
             <div className="auth-main-title">{mode === "bootstrap" ? "Create Admin" : "Sign In"}</div>
             <div className="auth-main-sub">{subtitle}</div>

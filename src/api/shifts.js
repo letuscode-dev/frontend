@@ -14,7 +14,7 @@ export function getOpenShift({ signal } = {}) {
 
 export function openShift(payload) {
   if (isOfflineModeActive()) {
-    return Promise.reject(new Error("Open the shift before entering offline mode."));
+    return Promise.reject(new Error("Shift opening is only available while online."));
   }
   return requestJson("/api/shifts/open", {
     method: "POST",
@@ -25,7 +25,7 @@ export function openShift(payload) {
 
 export function closeShift(id, payload) {
   if (isOfflineModeActive()) {
-    return Promise.reject(new Error("Sync offline sales before cashing up this shift."));
+    return Promise.reject(new Error("Sync pending sales before cashing up this shift."));
   }
   return requestJson(`/api/shifts/${id}/close`, {
     method: "POST",
@@ -36,7 +36,7 @@ export function closeShift(id, payload) {
 
 export function listShifts({ from, to, signal } = {}) {
   if (isOfflineModeActive()) {
-    return Promise.reject(new Error("Shift history is not available while offline mode is active."));
+    return Promise.reject(new Error("Shift history is unavailable offline."));
   }
   const params = new URLSearchParams();
   if (from) params.set("from", from);

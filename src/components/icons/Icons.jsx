@@ -307,6 +307,34 @@ export function ChevronDownIcon(props) {
   );
 }
 
+export function ChevronLeftIcon(props) {
+  return (
+    <Svg {...props}>
+      <path
+        d="M14.5 6 8.5 12l6 6"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+export function ChevronRightIcon(props) {
+  return (
+    <Svg {...props}>
+      <path
+        d="m9.5 6 6 6-6 6"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
 export function PencilIcon(props) {
   return (
     <Svg {...props}>

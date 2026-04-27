@@ -6,7 +6,11 @@ export default function TopBar({
   onOpenMobileMenu,
   onToggleTheme,
   theme,
+  offlineMeta,
 }) {
+  const offlineActive = Boolean(offlineMeta?.offlineModeActive);
+  const pendingCount = Number(offlineMeta?.pendingCount || 0);
+
   return (
     <header className="topbar">
       <div className="topbar-left">
@@ -34,6 +38,16 @@ export default function TopBar({
         <button className="icon-btn" type="button" onClick={onToggleTheme} aria-label="Toggle theme">
           {theme === "dark" ? <SunIcon className="nav-icon" /> : <MoonIcon className="nav-icon" />}
         </button>
+
+        <div
+          className={`network-indicator ${offlineActive ? "is-offline" : "is-online"}`}
+          aria-label={offlineActive ? "Offline mode active" : "Online"}
+          title={offlineActive ? `${pendingCount} sale${pendingCount === 1 ? "" : "s"} waiting to sync` : "Online"}
+        >
+          <span className="network-indicator-emoji" aria-hidden="true">
+            🛜
+          </span>
+        </div>
 
         <button className="icon-btn topbar-notifications" type="button" aria-label="Notifications">
           <BellIcon className="nav-icon" />

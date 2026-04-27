@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getStocktakeReport } from "../api/reports.js";
+import { getReportsOverview } from "../api/reports.js";
 import { listShifts } from "../api/shifts.js";
 import {
   closeStocktakeSession,
@@ -52,6 +52,10 @@ function getStatus(stockRaw) {
   return { label: "In Stock", tone: "ok" };
 }
 
+function isOfflineShiftMessage(message) {
+  return /offline/i.test(String(message || ""));
+}
+
 export default function ReportsPage({ search, onSearchChange, me }) {
   const isAdmin = useMemo(() => String(me?.role || "").toLowerCase() === "admin", [me]);
 
@@ -83,24 +87,18 @@ export default function ReportsPage({ search, onSearchChange, me }) {
   const [sessionBusy, setSessionBusy] = useState(false);
   const [sessionFilter, setSessionFilter] = useState("");
 
-  const visibleSessions = isAdmin ? sessions : [];
-  const visibleShifts = isAdmin ? shifts : [];
-
   const refreshSessions = ({ signal } = {}) => {
     if (!isAdmin) return Promise.resolve([]);
 
     return listStocktakeSessions({ signal })
       .then((data) => {
-        const list = Array.isArray(data) ? data : [];
         setSessionsError("");
-        setSessions(list);
-        return list;
+        setSessions(Array.isArray(data) ? data : []);
       })
       .catch((err) => {
-        if (err?.name === "AbortError") return [];
-        setSessionsError(err?.message || "Failed to load sessions");
+        if (err?.name === "AbortError") return;
+        setSessionsError(err?.message || "Failed to load inventory count sessions.");
         setSessions([]);
-        return [];
       });
   };
 
@@ -109,16 +107,18 @@ export default function ReportsPage({ search, onSearchChange, me }) {
 
     return listShifts({ signal })
       .then((data) => {
-        const list = Array.isArray(data) ? data : [];
         setShiftsError("");
-        setShifts(list);
-        return list;
+        setShifts(Array.isArray(data) ? data : []);
       })
       .catch((err) => {
-        if (err?.name === "AbortError") return [];
-        setShiftsError(err?.message || "Failed to load shifts");
+        if (err?.name === "AbortError") return;
+        if (isOfflineShiftMessage(err?.message)) {
+          setShiftsError("");
+          setShifts([]);
+          return;
+        }
+        setShiftsError(err?.message || "Failed to load shifts.");
         setShifts([]);
-        return [];
       });
   };
 
@@ -128,66 +128,69 @@ export default function ReportsPage({ search, onSearchChange, me }) {
       setShifts([]);
       return;
     }
+
     const controller = new AbortController();
-
     Promise.all([refreshSessions({ signal: controller.signal }), refreshShifts({ signal: controller.signal })]);
-
     return () => controller.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
-  const runStocktake = () => {
-    setError("");
-
+  const runOverview = () => {
     if (!isAdmin) {
-      setError("Admin access required to run this report.");
-      return;
-    }
-    if (!fromDate || !toDate) {
-      setError("Select a date range (from and to).");
+      setError("Admin access required to open reports.");
       return;
     }
 
-    const controller = new AbortController();
+    setError("");
     setLoading(true);
 
-    getStocktakeReport({
+    getReportsOverview({
       from: `${fromDate} 00:00:00`,
       to: `${toDate} 23:59:59`,
-      signal: controller.signal,
     })
       .then((data) => {
         setReport(data);
         setError("");
       })
-      .catch((err) => setError(err?.message || "Failed to generate stock take"))
+      .catch((err) => setError(err?.message || "Failed to generate reports."))
       .finally(() => setLoading(false));
-
-    return () => controller.abort();
   };
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    runOverview();
+  }, [isAdmin]);
 
   const filteredProducts = useMemo(() => {
     const list = Array.isArray(report?.products) ? report.products : [];
     const q = String(search || "").trim().toLowerCase();
     if (!q) return list;
-    return list.filter((p) => {
-      return (
-        String(p.name || "").toLowerCase().includes(q) ||
-        String(p.productId || "").toLowerCase().includes(q)
-      );
-    });
+    return list.filter((p) => String(p.name || "").toLowerCase().includes(q) || String(p.productId || "").toLowerCase().includes(q));
   }, [report, search]);
 
   const filteredLines = useMemo(() => {
     const list = Array.isArray(report?.lines) ? report.lines : [];
     const q = String(search || "").trim().toLowerCase();
     if (!q) return list;
-    return list.filter((l) => {
+    return list.filter((item) => {
       return (
-        String(l.saleId || "").toLowerCase().includes(q) ||
-        String(l.cashierName || "").toLowerCase().includes(q) ||
-        String(l.customerName || "").toLowerCase().includes(q) ||
-        String(l.productName || "").toLowerCase().includes(q)
+        String(item.saleId || "").toLowerCase().includes(q) ||
+        String(item.cashierName || "").toLowerCase().includes(q) ||
+        String(item.customerName || "").toLowerCase().includes(q) ||
+        String(item.productName || "").toLowerCase().includes(q)
+      );
+    });
+  }, [report, search]);
+
+  const filteredExpenses = useMemo(() => {
+    const list = Array.isArray(report?.expenses) ? report.expenses : [];
+    const q = String(search || "").trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((item) => {
+      return (
+        String(item.userName || "").toLowerCase().includes(q) ||
+        String(item.username || "").toLowerCase().includes(q) ||
+        String(item.category || "").toLowerCase().includes(q) ||
+        String(item.description || "").toLowerCase().includes(q)
       );
     });
   }, [report, search]);
@@ -195,7 +198,7 @@ export default function ReportsPage({ search, onSearchChange, me }) {
   const openCreateSession = () => {
     setNewSessionError("");
     setNewSessionForm({
-      name: `Stocktake Session ${toDate}`,
+      name: `Inventory Count ${toDate}`,
       note: "",
     });
     setNewSessionOpen(true);
@@ -224,86 +227,64 @@ export default function ReportsPage({ search, onSearchChange, me }) {
     })
       .then(() => refreshSessions())
       .then(() => setNewSessionOpen(false))
-      .catch((err) => setNewSessionError(err?.message || "Failed to create session"))
+      .catch((err) => setNewSessionError(err?.message || "Failed to create session."))
       .finally(() => setNewSessionSaving(false));
   };
 
   const openSession = (id) => {
     setSessionError("");
-    if (!isAdmin) {
-      setSessionError("Admin access required.");
-      return;
-    }
-
     setSessionModalOpen(true);
     setActiveSession(null);
     setSessionFilter("");
 
-    const controller = new AbortController();
-    getStocktakeSessionById(id, { signal: controller.signal })
+    getStocktakeSessionById(id)
       .then((data) => setActiveSession(data))
-      .catch((err) => {
-        if (err?.name === "AbortError") return;
-        setSessionError(err?.message || "Failed to load session");
-      });
-
-    return () => controller.abort();
+      .catch((err) => setSessionError(err?.message || "Failed to load session."));
   };
 
   const updateCountedStockLocal = (productId, raw) => {
     setActiveSession((prev) => {
       if (!prev) return prev;
-      const nextItems = (prev.items || []).map((it) => {
-        if (it.productId !== productId) return it;
-        if (raw === "" || raw == null) return { ...it, countedStock: null };
+      const items = (prev.items || []).map((item) => {
+        if (item.productId !== productId) return item;
+        if (raw === "" || raw == null) return { ...item, countedStock: null };
         const parsed = Number.parseInt(String(raw), 10);
-        return Number.isFinite(parsed) ? { ...it, countedStock: parsed } : { ...it, countedStock: null };
+        return Number.isFinite(parsed) ? { ...item, countedStock: parsed } : { ...item, countedStock: null };
       });
-      return { ...prev, items: nextItems };
+      return { ...prev, items };
     });
   };
 
   const saveSessionCounts = () => {
-    setSessionError("");
     if (!activeSession?.id) return;
-    if (!isAdmin) {
-      setSessionError("Admin access required.");
-      return;
-    }
 
     const items = (activeSession.items || [])
-      .filter((it) => it.countedStock != null)
-      .map((it) => ({ productId: it.productId, countedStock: it.countedStock }));
+      .filter((item) => item.countedStock != null)
+      .map((item) => ({ productId: item.productId, countedStock: item.countedStock }));
 
     setSessionBusy(true);
     updateStocktakeCounts(activeSession.id, { items })
       .then(() => getStocktakeSessionById(activeSession.id))
       .then((data) => setActiveSession(data))
       .then(() => refreshSessions())
-      .catch((err) => setSessionError(err?.message || "Failed to save counts"))
+      .catch((err) => setSessionError(err?.message || "Failed to save counts."))
       .finally(() => setSessionBusy(false));
   };
 
   const closeSession = () => {
-    setSessionError("");
     if (!activeSession?.id) return;
-    if (!isAdmin) {
-      setSessionError("Admin access required.");
-      return;
-    }
-
     if (!window.confirm("Apply counted stock to inventory and close this session?")) return;
 
     const items = (activeSession.items || [])
-      .filter((it) => it.countedStock != null)
-      .map((it) => ({ productId: it.productId, countedStock: it.countedStock }));
+      .filter((item) => item.countedStock != null)
+      .map((item) => ({ productId: item.productId, countedStock: item.countedStock }));
 
     setSessionBusy(true);
     updateStocktakeCounts(activeSession.id, { items })
       .then(() => closeStocktakeSession(activeSession.id, {}))
       .then(() => refreshSessions())
       .then(() => setSessionModalOpen(false))
-      .catch((err) => setSessionError(err?.message || "Failed to close session"))
+      .catch((err) => setSessionError(err?.message || "Failed to close session."))
       .finally(() => setSessionBusy(false));
   };
 
@@ -311,8 +292,8 @@ export default function ReportsPage({ search, onSearchChange, me }) {
     <section className="page">
       <div className="page-header">
         <div className="page-title">
-          <h1>Reports</h1>
-          <p>Run stock takes and understand what sold, at what price, and what's left.</p>
+          <h1>All Reports</h1>
+          <p>Revenue, expenses, cash-up, and inventory counts for the selected range.</p>
         </div>
       </div>
 
@@ -321,13 +302,13 @@ export default function ReportsPage({ search, onSearchChange, me }) {
       <div className="grid">
         <div className="card col-12">
           <div className="card-header">
-            <h3>Stock Take</h3>
-            <button className="btn primary" type="button" onClick={runStocktake} disabled={loading || !isAdmin}>
-              {loading ? "Generating..." : "Generate"}
+            <h3>Reporting Range</h3>
+            <button className="btn primary" type="button" onClick={runOverview} disabled={loading || !isAdmin}>
+              {loading ? "Refreshing..." : "Refresh Reports"}
             </button>
           </div>
 
-          <div className="field-row" style={{ marginBottom: 12 }}>
+          <div className="field-row">
             <div className="field" style={{ flex: "0 0 200px" }}>
               <label>From</label>
               <input className="input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
@@ -344,22 +325,22 @@ export default function ReportsPage({ search, onSearchChange, me }) {
                 className="input"
                 value={search}
                 onChange={(e) => onSearchChange?.(e.target.value)}
-                placeholder="Filter products, cashiers, receipts..."
+                placeholder="Filter products, expenses, cashiers, receipts..."
               />
             </div>
           </div>
-
-          {!isAdmin ? (
-            <div className="banner">Admin access required to run this report.</div>
-          ) : (
-            <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
-              This report shows a preview of up to {report?.lineLimit ?? 500} line items for the date range.
-            </div>
-          )}
         </div>
 
-	        {report ? (
-	          <>
+        {!isAdmin ? (
+          <div className="card col-12">
+            <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>
+              Only admins can open the reporting workspace.
+            </p>
+          </div>
+        ) : null}
+
+        {report ? (
+          <>
             <div className="card col-3">
               <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>Revenue</div>
               <div className="kpi-value">{formatCurrency(report.summary?.total || 0)}</div>
@@ -367,9 +348,9 @@ export default function ReportsPage({ search, onSearchChange, me }) {
             </div>
 
             <div className="card col-3">
-              <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>COGS</div>
-              <div className="kpi-value">{formatCurrency(report.summary?.cogs || 0)}</div>
-              <p className="kpi-sub">Cost of goods sold</p>
+              <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>Expenses</div>
+              <div className="kpi-value">{formatCurrency(report.summary?.totalExpenses || 0)}</div>
+              <p className="kpi-sub">{Number(report.summary?.expenseEntries || 0).toLocaleString()} entries</p>
             </div>
 
             <div className="card col-3">
@@ -379,40 +360,96 @@ export default function ReportsPage({ search, onSearchChange, me }) {
             </div>
 
             <div className="card col-3">
-              <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>Margin</div>
-              <div className="kpi-value">{formatPercent(report.summary?.marginPct)}</div>
-              <p className="kpi-sub">Gross profit / revenue</p>
-            </div>
-
-            <div className="card col-3">
-              <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>Items Sold</div>
-              <div className="kpi-value">{Number(report.summary?.itemsSold || 0).toLocaleString()}</div>
-              <p className="kpi-sub">Units sold</p>
-            </div>
-
-            <div className="card col-3">
-              <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>Products Sold</div>
-              <div className="kpi-value">{Number(report.summary?.productsSold || 0).toLocaleString()}</div>
-              <p className="kpi-sub">Unique SKUs sold</p>
-            </div>
-
-            <div className="card col-3">
-              <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>Average Sale</div>
-              <div className="kpi-value">{formatCurrency(report.summary?.avgSale || 0)}</div>
-              <p className="kpi-sub">Across the selected range</p>
-            </div>
-
-            <div className="card col-3">
-              <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>Range</div>
-              <div style={{ fontSize: 14, fontWeight: 900, marginTop: 10 }}>
-                {String(report.from).slice(0, 10)} to {String(report.to).slice(0, 10)}
-              </div>
-              <p className="kpi-sub">Viewer: {report.viewer?.name || "-"}</p>
+              <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>Net After Expenses</div>
+              <div className="kpi-value">{formatCurrency(report.summary?.netAfterExpenses || 0)}</div>
+              <p className="kpi-sub">Gross profit minus expenses</p>
             </div>
 
             <div className="card col-12">
               <div className="card-header">
-                <h3>Inventory & Sales Breakdown</h3>
+                <h3>Expense by Staff</h3>
+                <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
+                  {Array.isArray(report.expensesByUser) ? `${report.expensesByUser.length} people` : "0 people"}
+                </div>
+              </div>
+
+              <div className="table-wrap" aria-label="Expense by staff">
+                <table className="table table-plain table-wide">
+                  <thead>
+                    <tr>
+                      <th>Staff</th>
+                      <th>Entries</th>
+                      <th>Total Spent</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.isArray(report.expensesByUser) && report.expensesByUser.length > 0 ? (
+                      report.expensesByUser.map((item) => (
+                        <tr key={item.userId}>
+                          <td>
+                            <div className="cell-main">{item.userName || "-"}</div>
+                            <div className="cell-sub">{item.username ? `@${item.username}` : "Staff"}</div>
+                          </td>
+                          <td>{Number(item.entriesCount || 0).toLocaleString()}</td>
+                          <td>{formatCurrency(item.totalAmount || 0)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={3}>No expenses in this range.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="card col-12">
+              <div className="card-header">
+                <h3>Expense Ledger</h3>
+                <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
+                  {filteredExpenses.length} entries
+                </div>
+              </div>
+
+              <div className="table-wrap" aria-label="Expense ledger">
+                <table className="table table-plain table-wide">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Spent By</th>
+                      <th>Category</th>
+                      <th>Description</th>
+                      <th>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredExpenses.length > 0 ? (
+                      filteredExpenses.map((item) => (
+                        <tr key={item.id}>
+                          <td>{formatDateTime(item.spentAt)}</td>
+                          <td>
+                            <div className="cell-main">{item.userName || "-"}</div>
+                            <div className="cell-sub">{item.username ? `@${item.username}` : "Staff"}</div>
+                          </td>
+                          <td>{item.category || "General"}</td>
+                          <td>{item.description}</td>
+                          <td>{formatCurrency(item.amount || 0)}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={5}>No matching expenses.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="card col-12">
+              <div className="card-header">
+                <h3>Inventory and Sales Breakdown</h3>
                 <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
                   {filteredProducts.length} products
                 </div>
@@ -434,46 +471,40 @@ export default function ReportsPage({ search, onSearchChange, me }) {
                   </thead>
                   <tbody>
                     {filteredProducts.length > 0 ? (
-                      filteredProducts.map((p) => {
-                        const status = getStatus(p.currentStock);
-                        const revenue = Number(p.revenue || 0);
-                        const cogs = Number(p.cogs || 0);
-                        const profit = Number(p.grossProfit ?? revenue - cogs);
+                      filteredProducts.map((product) => {
+                        const status = getStatus(product.currentStock);
+                        const revenue = Number(product.revenue || 0);
+                        const cogs = Number(product.cogs || 0);
+                        const profit = Number(product.grossProfit ?? revenue - cogs);
                         const marginPct =
-                          p.marginPct != null ? Number(p.marginPct) : revenue > 0 ? (profit / revenue) * 100 : null;
+                          product.marginPct != null ? Number(product.marginPct) : revenue > 0 ? (profit / revenue) * 100 : null;
 
                         return (
-                          <tr key={p.productId}>
+                          <tr key={product.productId}>
                             <td>
-                              <strong style={{ letterSpacing: -0.2 }}>{p.name}</strong>
-                              <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
-                                #{p.productId} - Price {formatCurrency(p.currentPrice || 0)} - Cost{" "}
-                                {formatCurrency(p.currentCost || 0)}
+                              <strong style={{ letterSpacing: -0.2 }}>{product.name}</strong>
+                              <div className="cell-sub">
+                                #{product.productId} Price {formatCurrency(product.currentPrice || 0)} Cost{" "}
+                                {formatCurrency(product.currentCost || 0)}
                               </div>
                             </td>
-                            <td>{Number(p.qtySold || 0).toLocaleString()}</td>
-                            <td>{p.avgUnitPrice == null ? "-" : formatCurrency(p.avgUnitPrice)}</td>
-                            <td>{p.avgUnitCost == null ? "-" : formatCurrency(p.avgUnitCost)}</td>
+                            <td>{Number(product.qtySold || 0).toLocaleString()}</td>
+                            <td>{product.avgUnitPrice == null ? "-" : formatCurrency(product.avgUnitPrice)}</td>
+                            <td>{product.avgUnitCost == null ? "-" : formatCurrency(product.avgUnitCost)}</td>
                             <td>
-                              <div style={{ fontWeight: 900 }}>{formatCurrency(revenue)}</div>
-                              <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
-                                COGS {formatCurrency(cogs)}
-                              </div>
+                              <div className="cell-main">{formatCurrency(revenue)}</div>
+                              <div className="cell-sub">COGS {formatCurrency(cogs)}</div>
                             </td>
                             <td>
                               <div
-                                style={{
-                                  fontWeight: 900,
-                                  color: profit < 0 ? "var(--danger)" : "var(--ok)",
-                                }}
+                                className="cell-main"
+                                style={{ color: profit < 0 ? "var(--danger)" : "var(--ok)" }}
                               >
                                 {formatCurrency(profit)}
                               </div>
-                              <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
-                                Margin {formatPercent(marginPct)}
-                              </div>
+                              <div className="cell-sub">Margin {formatPercent(marginPct)}</div>
                             </td>
-                            <td>{Number(p.currentStock || 0).toLocaleString()}</td>
+                            <td>{Number(product.currentStock || 0).toLocaleString()}</td>
                             <td>
                               <span className={`badge ${status.tone}`}>{status.label}</span>
                             </td>
@@ -492,7 +523,7 @@ export default function ReportsPage({ search, onSearchChange, me }) {
 
             <div className="card col-12">
               <div className="card-header">
-                <h3>Line Items (Preview)</h3>
+                <h3>Line Items</h3>
                 <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
                   Showing {filteredLines.length} lines
                 </div>
@@ -516,18 +547,18 @@ export default function ReportsPage({ search, onSearchChange, me }) {
                   </thead>
                   <tbody>
                     {filteredLines.length > 0 ? (
-                      filteredLines.map((l) => (
-                        <tr key={`${l.saleId}-${l.productId}-${l.createdAt}-${l.unitPrice}`}>
-                          <td>{formatDateTime(l.createdAt)}</td>
-                          <td>#{l.saleId}</td>
-                          <td>{l.cashierName || "-"}</td>
-                          <td>{l.customerName || "Walk-in"}</td>
-                          <td>{l.productName}</td>
-                          <td>{Number(l.qty || 0).toLocaleString()}</td>
-                          <td>{formatCurrency(l.unitPrice || 0)}</td>
-                          <td>{formatCurrency(l.unitCost || 0)}</td>
-                          <td style={{ textAlign: "right" }}>{formatCurrency(l.lineTotal || 0)}</td>
-                          <td style={{ textAlign: "right" }}>{formatCurrency(l.lineProfit || 0)}</td>
+                      filteredLines.map((item) => (
+                        <tr key={`${item.saleId}-${item.productId}-${item.createdAt}-${item.unitPrice}`}>
+                          <td>{formatDateTime(item.createdAt)}</td>
+                          <td>#{item.saleId}</td>
+                          <td>{item.cashierName || "-"}</td>
+                          <td>{item.customerName || "Walk-in"}</td>
+                          <td>{item.productName}</td>
+                          <td>{Number(item.qty || 0).toLocaleString()}</td>
+                          <td>{formatCurrency(item.unitPrice || 0)}</td>
+                          <td>{formatCurrency(item.unitCost || 0)}</td>
+                          <td>{formatCurrency(item.lineTotal || 0)}</td>
+                          <td>{formatCurrency(item.lineProfit || 0)}</td>
                         </tr>
                       ))
                     ) : (
@@ -538,17 +569,13 @@ export default function ReportsPage({ search, onSearchChange, me }) {
                   </tbody>
                 </table>
               </div>
-
-              <p style={{ margin: "10px 0 0", color: "var(--muted)", fontSize: 12 }}>
-                Tip: Use the filter to quickly find a product name, cashier, customer, or receipt number.
-              </p>
             </div>
-	          </>
-	        ) : null}
+          </>
+        ) : null}
 
         <div className="card col-12">
           <div className="card-header">
-            <h3>Stock Take Sessions (Physical Count)</h3>
+            <h3>Inventory Count Sessions</h3>
             <button className="btn primary" type="button" onClick={openCreateSession} disabled={!isAdmin}>
               New Session
             </button>
@@ -556,9 +583,7 @@ export default function ReportsPage({ search, onSearchChange, me }) {
 
           {sessionsError ? <div className="banner" style={{ marginBottom: 12 }}>{sessionsError}</div> : null}
 
-          {!isAdmin ? <div className="banner">Admin access required to manage stocktake sessions.</div> : null}
-
-          <div className="table-wrap" aria-label="Stocktake sessions">
+          <div className="table-wrap" aria-label="Inventory count sessions">
             <table className="table table-plain table-wide">
               <thead>
                 <tr>
@@ -571,31 +596,30 @@ export default function ReportsPage({ search, onSearchChange, me }) {
                 </tr>
               </thead>
               <tbody>
-                {visibleSessions === null ? (
+                {sessions === null ? (
                   <tr>
                     <td colSpan={6}>Loading sessions...</td>
                   </tr>
-                ) : visibleSessions.length > 0 ? (
-                  visibleSessions.map((s) => (
-                    <tr key={s.id}>
+                ) : sessions.length > 0 ? (
+                  sessions.map((session) => (
+                    <tr key={session.id}>
                       <td>
-                        <strong style={{ letterSpacing: -0.2 }}>{s.name}</strong>
-                        <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>#{s.id}</div>
+                        <strong style={{ letterSpacing: -0.2 }}>{session.name}</strong>
+                        <div className="cell-sub">#{session.id}</div>
                       </td>
                       <td>
-                        <span className={`badge ${s.status === "closed" ? "ok" : "warn"}`}>{s.status}</span>
+                        <span className={`badge ${session.status === "closed" ? "ok" : "warn"}`}>{session.status}</span>
                       </td>
-                      <td>{s.createdAt ? formatDateTime(s.createdAt) : "-"}</td>
+                      <td>{session.createdAt ? formatDateTime(session.createdAt) : "-"}</td>
                       <td>
-                        {s.fromAt ? String(s.fromAt).slice(0, 10) : "-"}
-                        {"  "}to{"  "}
-                        {s.toAt ? String(s.toAt).slice(0, 10) : "-"}
+                        {session.fromAt ? String(session.fromAt).slice(0, 10) : "-"} to{" "}
+                        {session.toAt ? String(session.toAt).slice(0, 10) : "-"}
                       </td>
                       <td>
-                        {Number(s.countedCount || 0).toLocaleString()} / {Number(s.itemsCount || 0).toLocaleString()}
+                        {Number(session.countedCount || 0).toLocaleString()} / {Number(session.itemsCount || 0).toLocaleString()}
                       </td>
-                      <td style={{ textAlign: "right" }}>
-                        <button className="btn" type="button" onClick={() => openSession(s.id)} disabled={!isAdmin}>
+                      <td>
+                        <button className="btn" type="button" onClick={() => openSession(session.id)} disabled={!isAdmin}>
                           Open
                         </button>
                       </td>
@@ -609,17 +633,13 @@ export default function ReportsPage({ search, onSearchChange, me }) {
               </tbody>
             </table>
           </div>
-
-          <p style={{ margin: "10px 0 0", color: "var(--muted)", fontSize: 12 }}>
-            Tip: Create a session, enter physical counts, then "Apply & Close" to sync inventory to the counted stock.
-          </p>
         </div>
 
         <div className="card col-12">
           <div className="card-header">
             <h3>Shifts / Cash-up</h3>
             <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
-              Last 200 shifts
+              Latest activity
             </div>
           </div>
 
@@ -640,44 +660,39 @@ export default function ReportsPage({ search, onSearchChange, me }) {
                 </tr>
               </thead>
               <tbody>
-                {visibleShifts === null ? (
+                {shifts === null ? (
                   <tr>
                     <td colSpan={8}>Loading shifts...</td>
                   </tr>
-                ) : visibleShifts.length > 0 ? (
-                  visibleShifts.slice(0, 20).map((sh) => (
-                    <tr key={sh.id}>
-                      <td>#{sh.id}</td>
-                      <td>{sh.cashierName || sh.cashierId || "-"}</td>
-                      <td>{sh.openedAt ? formatDateTime(sh.openedAt) : "-"}</td>
-                      <td>{sh.closedAt ? formatDateTime(sh.closedAt) : <span className="badge warn">open</span>}</td>
-                      <td>{formatCurrency(sh.salesTotal || 0)}</td>
-                      <td>{formatCurrency(sh.expectedCash || 0)}</td>
-                      <td>{sh.closingCash == null ? "-" : formatCurrency(sh.closingCash)}</td>
-                      <td
-                        style={{
-                          fontWeight: 900,
-                          color: Number(sh.variance || 0) < 0 ? "var(--danger)" : "var(--ok)",
-                        }}
-                      >
-                        {sh.variance == null ? "-" : formatCurrency(sh.variance)}
+                ) : shifts.length > 0 ? (
+                  shifts.slice(0, 20).map((shift) => (
+                    <tr key={shift.id}>
+                      <td>#{shift.id}</td>
+                      <td>{shift.cashierName || shift.cashierId || "-"}</td>
+                      <td>{shift.openedAt ? formatDateTime(shift.openedAt) : "-"}</td>
+                      <td>{shift.closedAt ? formatDateTime(shift.closedAt) : <span className="badge warn">open</span>}</td>
+                      <td>{formatCurrency(shift.salesTotal || 0)}</td>
+                      <td>{formatCurrency(shift.expectedCash || 0)}</td>
+                      <td>{shift.closingCash == null ? "-" : formatCurrency(shift.closingCash)}</td>
+                      <td style={{ color: Number(shift.variance || 0) < 0 ? "var(--danger)" : "var(--ok)", fontWeight: 900 }}>
+                        {shift.variance == null ? "-" : formatCurrency(shift.variance)}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={8}>No shifts yet.</td>
+                    <td colSpan={8}>No shift history available for this view.</td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
         </div>
-	      </div>
+      </div>
 
       <Modal
         open={newSessionOpen}
-        title="New Stocktake Session"
+        title="New Inventory Count Session"
         subtitle={`Range: ${fromDate} to ${toDate}`}
         onClose={() => setNewSessionOpen(false)}
       >
@@ -688,7 +703,7 @@ export default function ReportsPage({ search, onSearchChange, me }) {
           <input
             className="input"
             value={newSessionForm.name}
-            onChange={(e) => setNewSessionForm((f) => ({ ...f, name: e.target.value }))}
+            onChange={(e) => setNewSessionForm((prev) => ({ ...prev, name: e.target.value }))}
             placeholder="e.g. End of Month Count"
             autoFocus
           />
@@ -699,7 +714,7 @@ export default function ReportsPage({ search, onSearchChange, me }) {
           <input
             className="input"
             value={newSessionForm.note}
-            onChange={(e) => setNewSessionForm((f) => ({ ...f, note: e.target.value }))}
+            onChange={(e) => setNewSessionForm((prev) => ({ ...prev, note: e.target.value }))}
             placeholder="Who counted, notes, etc."
           />
         </div>
@@ -716,7 +731,7 @@ export default function ReportsPage({ search, onSearchChange, me }) {
 
       <Modal
         open={sessionModalOpen}
-        title={activeSession?.name || "Stocktake Session"}
+        title={activeSession?.name || "Inventory Count Session"}
         subtitle={activeSession?.id ? `Session #${activeSession.id}` : "Enter physical counts and reconcile inventory"}
         onClose={() => setSessionModalOpen(false)}
       >
@@ -739,16 +754,14 @@ export default function ReportsPage({ search, onSearchChange, me }) {
               </div>
             </div>
 
-            <div className="field-row" style={{ marginBottom: 12 }}>
-              <div className="field" style={{ flex: "1 1 280px" }}>
-                <label>Filter Products</label>
-                <input
-                  className="input"
-                  value={sessionFilter}
-                  onChange={(e) => setSessionFilter(e.target.value)}
-                  placeholder="Type to filter..."
-                />
-              </div>
+            <div className="field" style={{ marginBottom: 12 }}>
+              <label>Filter Products</label>
+              <input
+                className="input"
+                value={sessionFilter}
+                onChange={(e) => setSessionFilter(e.target.value)}
+                placeholder="Type to filter..."
+              />
             </div>
 
             <div className="table-wrap" aria-label="Session counts">
@@ -764,30 +777,30 @@ export default function ReportsPage({ search, onSearchChange, me }) {
                 </thead>
                 <tbody>
                   {(activeSession.items || [])
-                    .filter((it) => {
+                    .filter((item) => {
                       const q = String(sessionFilter || "").trim().toLowerCase();
                       if (!q) return true;
                       return (
-                        String(it.productName || "").toLowerCase().includes(q) ||
-                        String(it.productId || "").toLowerCase().includes(q)
+                        String(item.productName || "").toLowerCase().includes(q) ||
+                        String(item.productId || "").toLowerCase().includes(q)
                       );
                     })
                     .slice(0, 80)
-                    .map((it) => {
-                      const counted = it.countedStock == null ? "" : String(it.countedStock);
+                    .map((item) => {
+                      const counted = item.countedStock == null ? "" : String(item.countedStock);
                       const variance =
-                        it.countedStock == null ? null : Number(it.countedStock) - Number(it.expectedStock || 0);
+                        item.countedStock == null ? null : Number(item.countedStock) - Number(item.expectedStock || 0);
 
                       return (
-                        <tr key={it.productId}>
+                        <tr key={item.productId}>
                           <td>
-                            <strong style={{ letterSpacing: -0.2 }}>{it.productName}</strong>
-                            <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>#{it.productId}</div>
+                            <strong style={{ letterSpacing: -0.2 }}>{item.productName}</strong>
+                            <div className="cell-sub">#{item.productId}</div>
                           </td>
-                          <td>{Number(it.expectedStock || 0).toLocaleString()}</td>
+                          <td>{Number(item.expectedStock || 0).toLocaleString()}</td>
                           <td>
                             {activeSession.status === "closed" ? (
-                              it.countedStock == null ? "-" : Number(it.countedStock).toLocaleString()
+                              item.countedStock == null ? "-" : Number(item.countedStock).toLocaleString()
                             ) : (
                               <input
                                 className="input sm"
@@ -797,24 +810,20 @@ export default function ReportsPage({ search, onSearchChange, me }) {
                                 min="0"
                                 step="1"
                                 value={counted}
-                                onChange={(e) => updateCountedStockLocal(it.productId, e.target.value)}
+                                onChange={(e) => updateCountedStockLocal(item.productId, e.target.value)}
                               />
                             )}
                           </td>
                           <td style={{ fontWeight: 900, color: variance != null && variance < 0 ? "var(--danger)" : "var(--ok)" }}>
                             {variance == null ? "-" : variance.toLocaleString()}
                           </td>
-                          <td>{it.currentStock == null ? "-" : Number(it.currentStock).toLocaleString()}</td>
+                          <td>{item.currentStock == null ? "-" : Number(item.currentStock).toLocaleString()}</td>
                         </tr>
                       );
                     })}
                 </tbody>
               </table>
             </div>
-
-            <p style={{ margin: "10px 0 0", color: "var(--muted)", fontSize: 12 }}>
-              Showing up to 80 items. Use the filter to find a product fast.
-            </p>
 
             <div className="modal-actions">
               <button className="btn ghost" type="button" onClick={() => setSessionModalOpen(false)} disabled={sessionBusy}>
@@ -824,7 +833,7 @@ export default function ReportsPage({ search, onSearchChange, me }) {
                 {sessionBusy ? "Saving..." : "Save Counts"}
               </button>
               <button className="btn primary" type="button" onClick={closeSession} disabled={sessionBusy || activeSession.status === "closed"}>
-                {sessionBusy ? "Applying..." : "Apply & Close"}
+                {sessionBusy ? "Applying..." : "Apply and Close"}
               </button>
             </div>
           </>

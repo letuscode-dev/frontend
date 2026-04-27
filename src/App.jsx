@@ -56,9 +56,10 @@ function App() {
         <ToastStack />
         <div className="auth">
           <div className="auth-bg" aria-hidden="true" />
-          <div className="auth-card" style={{ textAlign: "center" }}>
-            <div className="auth-brand">T-ONE</div>
-            <div className="auth-sub">Loading...</div>
+          <div className="auth-card auth-card-simple auth-loading-card" style={{ textAlign: "center" }}>
+            <div className="loading-emoji loading-emoji-lg" aria-label="Loading">
+              🔄
+            </div>
           </div>
         </div>
       </>
@@ -130,14 +131,10 @@ function App() {
             onOpenMobileMenu={() => setMobileMenuOpen(true)}
             onToggleTheme={toggleTheme}
             theme={theme}
+            offlineMeta={offlineMeta}
           />
         }
       >
-        {offlineMeta.offlineModeActive ? (
-          <div className="banner" style={{ marginBottom: 12 }}>
-            Offline mode is active. Sales are being saved on this device and will upload when you sync.
-          </div>
-        ) : null}
         {page}
       </AppShell>
     </>
