@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { bootstrapStatus } from "../api/auth.js";
-import { LockIcon, MoonIcon, SunIcon, UserIcon } from "../components/icons/Icons.jsx";
+import { LockIcon, UserIcon } from "../components/icons/Icons.jsx";
 
 function normalizeUsername(v) {
   return String(v || "").trim().toLowerCase();
 }
 
-export default function LoginPage({ theme, onToggleTheme, onLogin, onBootstrap, onAuthenticated }) {
+export default function LoginPage({ onLogin, onBootstrap, onAuthenticated }) {
   const [mode, setMode] = useState("login"); // login | bootstrap
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -30,11 +30,6 @@ export default function LoginPage({ theme, onToggleTheme, onLogin, onBootstrap, 
   useEffect(() => {
     if (mode === "bootstrap" && setupChecked && !setupEnabled) setMode("login");
   }, [mode, setupChecked, setupEnabled]);
-
-  const subtitle = useMemo(() => {
-    if (mode === "bootstrap") return "Create the first admin account.";
-    return "";
-  }, [mode]);
 
   const submitLogin = async (e) => {
     e.preventDefault();
@@ -77,20 +72,6 @@ export default function LoginPage({ theme, onToggleTheme, onLogin, onBootstrap, 
 
       <div className="auth-card auth-card-simple">
         <section className="auth-main" aria-label="Sign in">
-          <div className="auth-simple-top">
-            <div className="auth-mark" aria-hidden="true">
-              T1
-            </div>
-            <button className="icon-btn auth-theme-btn" type="button" onClick={onToggleTheme} aria-label="Toggle theme">
-              {theme === "dark" ? <SunIcon className="nav-icon" /> : <MoonIcon className="nav-icon" />}
-            </button>
-          </div>
-
-          <div className="auth-main-head">
-            <div className="auth-main-title">{mode === "bootstrap" ? "Create Admin" : "Sign In"}</div>
-            {subtitle ? <div className="auth-main-sub">{subtitle}</div> : null}
-          </div>
-
           {error ? <div className="banner" style={{ marginBottom: 12 }}>{error}</div> : null}
 
           {mode === "login" ? (
