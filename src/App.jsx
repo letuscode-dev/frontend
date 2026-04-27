@@ -50,6 +50,11 @@ function App() {
     offlineMeta,
   };
 
+  useEffect(() => {
+    if (!me?.id) return;
+    navigate("/dashboard");
+  }, [me?.id, navigate]);
+
   if (auth.loading) {
     return (
       <>
@@ -78,11 +83,6 @@ function App() {
       </>
     );
   }
-
-  useEffect(() => {
-    if (!me?.id) return;
-    navigate("/dashboard");
-  }, [me?.id, navigate]);
 
   let page = null;
   switch (routeKey) {
