@@ -6,7 +6,7 @@ function normalizeUsername(v) {
   return String(v || "").trim().toLowerCase();
 }
 
-export default function LoginPage({ theme, onToggleTheme, onLogin, onBootstrap }) {
+export default function LoginPage({ theme, onToggleTheme, onLogin, onBootstrap, onAuthenticated }) {
   const [mode, setMode] = useState("login"); // login | bootstrap
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -45,6 +45,7 @@ export default function LoginPage({ theme, onToggleTheme, onLogin, onBootstrap }
         username: normalizeUsername(loginForm.username),
         password: String(loginForm.password || ""),
       });
+      onAuthenticated?.();
     } catch (err) {
       setError(err?.message || "Login failed");
     } finally {
@@ -62,6 +63,7 @@ export default function LoginPage({ theme, onToggleTheme, onLogin, onBootstrap }
         username: normalizeUsername(bootForm.username),
         password: String(bootForm.password || ""),
       });
+      onAuthenticated?.();
     } catch (err) {
       setError(err?.message || "Bootstrap failed");
     } finally {

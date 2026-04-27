@@ -50,11 +50,6 @@ function App() {
     offlineMeta,
   };
 
-  useEffect(() => {
-    if (!me?.id) return;
-    navigate("/dashboard");
-  }, [me?.id, navigate]);
-
   if (auth.loading) {
     return (
       <>
@@ -79,6 +74,7 @@ function App() {
           onToggleTheme={toggleTheme}
           onLogin={auth.login}
           onBootstrap={auth.bootstrap}
+          onAuthenticated={() => navigate("/dashboard")}
         />
       </>
     );

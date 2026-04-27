@@ -1140,6 +1140,7 @@ export default function SalesPage({ search, me, offlineRevision = 0, offlineMeta
                 <th>Customer</th>
                 <th>Date</th>
                 <th>Cashier</th>
+                <th>Status</th>
                 <th>Total</th>
                 <th>Actions</th>
               </tr>
@@ -1147,7 +1148,7 @@ export default function SalesPage({ search, me, offlineRevision = 0, offlineMeta
             <tbody>
               {sales === null || salesLoading ? (
                 <tr>
-                  <td colSpan={6}>Loading sales...</td>
+                  <td colSpan={7}>Loading sales...</td>
                 </tr>
               ) : filteredSales.length > 0 ? (
                 filteredSales.map((s) => {
@@ -1161,9 +1162,6 @@ export default function SalesPage({ search, me, offlineRevision = 0, offlineMeta
                           <div className="cell-main">#{s.id}</div>
                           <div className="sales-row-meta">
                             <span className="badge">{itemsCount} item{itemsCount === 1 ? "" : "s"}</span>
-                            <span className={`badge ${pendingSync ? "warn" : "ok"}`}>
-                              {pendingSync ? "Pending Sync" : "Synced"}
-                            </span>
                           </div>
                         </div>
                       </td>
@@ -1178,6 +1176,11 @@ export default function SalesPage({ search, me, offlineRevision = 0, offlineMeta
                       <td>
                         <div className="cell-main">{s.cashierName || "-"}</div>
                         <div className="cell-sub">Cashier</div>
+                      </td>
+                      <td>
+                        <span className={`badge ${pendingSync ? "warn" : "ok"}`}>
+                          {pendingSync ? "Unsynced" : "Synced"}
+                        </span>
                       </td>
                       <td>
                         <div className="sales-total-cell">{formatCurrency(Number(s.total || 0))}</div>
@@ -1199,7 +1202,7 @@ export default function SalesPage({ search, me, offlineRevision = 0, offlineMeta
                 })
               ) : (
                 <tr>
-                  <td colSpan={6}>No sales yet.</td>
+                  <td colSpan={7}>No sales yet.</td>
                 </tr>
               )}
             </tbody>
