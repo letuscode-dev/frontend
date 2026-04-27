@@ -418,12 +418,12 @@ export default function SettingsPage({ theme, onToggleTheme, search, onSearchCha
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div className="field-row settings-print-actions" style={{ marginTop: 12 }}>
                 <button className="btn" type="button" onClick={loadPairedPrinters} disabled={btBusy}>
                   {btBusy ? "Loading..." : "Refresh"}
                 </button>
-              </div>
-
-              <div className="field-row" style={{ marginTop: 12 }}>
                 <button className="btn primary" type="button" onClick={testBluetoothPrint} disabled={btBusy || !btPrinterAddress}>
                   {btBusy ? "Printing..." : "Test Print"}
                 </button>

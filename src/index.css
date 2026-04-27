@@ -399,6 +399,92 @@ a {
   padding: 16px;
 }
 
+.sales-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.sales-panel-right {
+  min-width: 0;
+}
+
+.sales-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.sales-filters {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(110px, 140px) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 4px 0 14px;
+}
+
+.sales-filter-field {
+  min-width: 0;
+}
+
+.sales-filter-field .input {
+  width: 100%;
+}
+
+.sales-filter-limit {
+  max-width: 140px;
+}
+
+.sales-filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  align-self: end;
+}
+
+.sales-filter-actions .btn {
+  min-width: 96px;
+}
+
+.sales-row td {
+  vertical-align: middle;
+}
+
+.sales-sale-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sales-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sales-total-cell {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
+  white-space: nowrap;
+}
+
+.sales-actions {
+  gap: 6px;
+}
+
+.sales-actions .btn {
+  min-width: 74px;
+}
+
+.settings-print-actions {
+  align-items: stretch;
+}
+
+.settings-print-actions .btn {
+  min-width: 140px;
+}
+
 .card-header {
   display: flex;
   align-items: center;
@@ -1065,6 +1151,23 @@ a {
     align-items: flex-start;
   }
 
+  .sales-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sales-filter-limit {
+    max-width: none;
+  }
+
+  .sales-filter-actions {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+
+  .sales-filter-actions .btn {
+    flex: 1 1 0;
+  }
+
   .shift-grid {
     grid-template-columns: 1fr;
   }
@@ -1105,6 +1208,11 @@ a {
 
   .modal {
     max-height: calc(100svh - 28px);
+  }
+
+  .settings-print-actions .btn {
+    flex: 1 1 0;
+    min-width: 0;
   }
 
   .cart-row {
@@ -1174,6 +1282,14 @@ a {
 }
 
 @media (max-width: 560px) {
+  .sales-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .sales-filter-actions {
+    flex-direction: column;
+  }
+
   .grid.kpis .col-3 {
     grid-column: span 6;
   }

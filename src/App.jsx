@@ -79,6 +79,11 @@ function App() {
     );
   }
 
+  useEffect(() => {
+    if (!me?.id) return;
+    navigate("/dashboard");
+  }, [me?.id, navigate]);
+
   let page = null;
   switch (routeKey) {
     case "dashboard":

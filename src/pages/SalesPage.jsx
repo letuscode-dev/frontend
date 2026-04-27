@@ -798,7 +798,7 @@ export default function SalesPage({ search, me, offlineRevision = 0, offlineMeta
       ) : null}
 
       <div className="grid">
-        <div className="card col-7">
+        <div className="card col-6 sales-panel">
           <div className="card-header">
             <h3>Products</h3>
             <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
@@ -862,7 +862,7 @@ export default function SalesPage({ search, me, offlineRevision = 0, offlineMeta
           </div>
         </div>
 
-        <div className="card col-5">
+        <div className="card col-6 sales-panel sales-panel-right">
           <div className="card-header">
             <h3>Current Sale</h3>
             <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
@@ -958,7 +958,7 @@ export default function SalesPage({ search, me, offlineRevision = 0, offlineMeta
             </div>
           ) : null}
 
-          <form onSubmit={completeSale}>
+          <form className="sales-form" onSubmit={completeSale}>
             <div className="field" style={{ marginBottom: 10 }}>
               <label>Cashier</label>
               <div className="input" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
@@ -1101,20 +1101,19 @@ export default function SalesPage({ search, me, offlineRevision = 0, offlineMeta
           </div>
 
           {isAdmin ? (
-            <div className="field-row" style={{ padding: "0 18px 14px", alignItems: "flex-end" }}>
-              <div className="field">
+            <div className="sales-filters">
+              <div className="field sales-filter-field">
                 <label>From</label>
                 <input className="input sm" type="date" value={salesFrom} onChange={(e) => setSalesFrom(e.target.value)} />
               </div>
-              <div className="field">
+              <div className="field sales-filter-field">
                 <label>To</label>
                 <input className="input sm" type="date" value={salesTo} onChange={(e) => setSalesTo(e.target.value)} />
               </div>
-              <div className="field">
+              <div className="field sales-filter-field sales-filter-limit">
                 <label>Limit</label>
                 <input
                   className="input sm"
-                  style={{ width: 110 }}
                   type="number"
                   min="1"
                   max="2000"
@@ -1122,16 +1121,13 @@ export default function SalesPage({ search, me, offlineRevision = 0, offlineMeta
                   onChange={(e) => setSalesLimit(e.target.value)}
                 />
               </div>
-              <div className="field" style={{ marginLeft: "auto" }}>
-                <label style={{ opacity: 0 }}>Load</label>
-                <div className="row-actions">
-                  <button className="btn" type="button" onClick={() => reloadSales()} disabled={salesLoading}>
-                    {salesLoading ? "Loading..." : "Load"}
-                  </button>
-                  <button className="btn ghost" type="button" onClick={resetSalesFilters} disabled={salesLoading}>
-                    Reset
-                  </button>
-                </div>
+              <div className="sales-filter-actions">
+                <button className="btn" type="button" onClick={() => reloadSales()} disabled={salesLoading}>
+                  {salesLoading ? "Loading..." : "Load"}
+                </button>
+                <button className="btn ghost" type="button" onClick={resetSalesFilters} disabled={salesLoading}>
+                  Reset
+                </button>
               </div>
             </div>
           ) : null}
@@ -1142,8 +1138,8 @@ export default function SalesPage({ search, me, offlineRevision = 0, offlineMeta
               <tr>
                 <th>Sale</th>
                 <th>Customer</th>
-                <th>Cashier</th>
                 <th>Date</th>
+                <th>Cashier</th>
                 <th>Total</th>
                 <th>Actions</th>
               </tr>
@@ -1156,19 +1152,39 @@ export default function SalesPage({ search, me, offlineRevision = 0, offlineMeta
               ) : filteredSales.length > 0 ? (
                 filteredSales.map((s) => {
                   const dt = formatDateTimeParts(s.createdAt);
+                  const itemsCount = Number(s.itemsCount || 0);
+                  const pendingSync = Boolean(s.offlinePending);
                   return (
-                    <tr key={s.id}>
-                      <td>#{s.id}</td>
-                      <td>{s.customerName || "Walk-in"}</td>
-                      <td>{s.cashierName || "-"}</td>
+                    <tr key={s.id} className="sales-row">
+                      <td>
+                        <div className="sales-sale-cell">
+                          <div className="cell-main">#{s.id}</div>
+                          <div className="sales-row-meta">
+                            <span className="badge">{itemsCount} item{itemsCount === 1 ? "" : "s"}</span>
+                            <span className={`badge ${pendingSync ? "warn" : "ok"}`}>
+                              {pendingSync ? "Pending Sync" : "Synced"}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="cell-main">{s.customerName || "Walk-in"}</div>
+                        <div className="cell-sub">{s.customerName ? "Customer sale" : "No customer name"}</div>
+                      </td>
                       <td>
                         <div className="cell-main">{dt.date}</div>
                         {dt.time ? <div className="cell-sub">{dt.time}</div> : null}
                       </td>
-                      <td>{formatCurrency(Number(s.total || 0))}</td>
+                      <td>
+                        <div className="cell-main">{s.cashierName || "-"}</div>
+                        <div className="cell-sub">Cashier</div>
+                      </td>
+                      <td>
+                        <div className="sales-total-cell">{formatCurrency(Number(s.total || 0))}</div>
+                      </td>
                       <td style={{ textAlign: "right" }}>
-                        <div className="row-actions">
-                          <button className="btn" type="button" onClick={() => openReceiptForSale(s.id)} disabled={submitting || editBusy}>
+                        <div className="row-actions sales-actions">
+                          <button className="btn ghost" type="button" onClick={() => openReceiptForSale(s.id)} disabled={submitting || editBusy}>
                             Print
                           </button>
                           {isAdmin ? (
