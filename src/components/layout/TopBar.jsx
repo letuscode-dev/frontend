@@ -39,15 +39,17 @@ export default function TopBar({
           {theme === "dark" ? <SunIcon className="nav-icon" /> : <MoonIcon className="nav-icon" />}
         </button>
 
-        <div
+        <button
           className={`network-indicator ${offlineActive ? "is-offline" : "is-online"}`}
+          type="button"
           aria-label={offlineActive ? "Offline mode active" : "Online"}
           title={offlineActive ? `${pendingCount} sale${pendingCount === 1 ? "" : "s"} waiting to sync` : "Online"}
+          disabled
         >
           <span className="network-indicator-emoji" aria-hidden="true">
-            🛜
+            {"\u{1F6DC}"}
           </span>
-        </div>
+        </button>
 
         <button className="icon-btn topbar-notifications" type="button" aria-label="Notifications">
           <BellIcon className="nav-icon" />

@@ -248,6 +248,11 @@ a {
   box-shadow: var(--shadow-soft), var(--focus);
 }
 
+.network-indicator:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
 .content {
   min-width: 0;
 }
@@ -299,12 +304,14 @@ a {
 .network-indicator {
   width: 40px;
   height: 40px;
+  flex: 0 0 40px;
   border-radius: 14px;
   display: inline-grid;
   place-items: center;
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface-solid) 70%, transparent);
   box-shadow: var(--shadow-soft);
+  padding: 0;
 }
 
 .network-indicator.is-online {
@@ -316,7 +323,7 @@ a {
 }
 
 .network-indicator-emoji {
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1;
 }
 
@@ -1426,8 +1433,11 @@ a {
 }
 
 .auth-card.auth-card-simple {
-  width: min(460px, 100%);
+  width: min(430px, 100%);
   grid-template-columns: 1fr;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(18px);
 }
 
 .auth-loading-card {
@@ -1561,7 +1571,7 @@ a {
 }
 
 .auth-main {
-  padding: 22px;
+  padding: 28px 26px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1572,15 +1582,15 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 18px;
-}
-
-.auth-main-head {
   margin-bottom: 14px;
 }
 
+.auth-main-head {
+  margin-bottom: 18px;
+}
+
 .auth-main-title {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 950;
   letter-spacing: -0.7px;
 }
@@ -1614,7 +1624,7 @@ a {
 .auth-actions {
   display: grid;
   gap: 10px;
-  margin-top: 16px;
+  margin-top: 22px;
 }
 
 .auth-primary {
@@ -1642,13 +1652,37 @@ a {
   font-weight: 750;
 }
 
+.auth .field label {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.auth .input {
+  height: 54px;
+  border-radius: 18px;
+  border-color: rgba(16, 45, 91, 0.14);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 14px 34px rgba(16, 35, 67, 0.08);
+}
+
+.auth .input::placeholder {
+  color: rgba(16, 35, 67, 0.46);
+}
+
+.auth .btn.primary.auth-primary {
+  height: 54px;
+  border-radius: 18px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
 @media (max-width: 860px) {
   .auth-card {
     grid-template-columns: 1fr;
   }
 
   .auth-card.auth-card-simple {
-    width: min(420px, 100%);
+    width: min(400px, 100%);
   }
 
   .auth-hero {
@@ -1660,6 +1694,6 @@ a {
   }
 
   .auth-main {
-    padding: 18px;
+    padding: 22px 18px;
   }
 }

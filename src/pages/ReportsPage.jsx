@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createExpense, listExpenses } from "../api/expenses.js";
 import { getReportsOverview } from "../api/reports.js";
 import { listShifts } from "../api/shifts.js";
 import {
@@ -58,18 +59,27 @@ function isOfflineShiftMessage(message) {
 
 export default function ReportsPage({ search, onSearchChange, me }) {
   const isAdmin = useMemo(() => String(me?.role || "").toLowerCase() === "admin", [me]);
-
   const today = useMemo(() => new Date(), []);
+
   const [fromDate, setFromDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 6);
     return toLocalDateInputValue(d);
   });
   const [toDate, setToDate] = useState(() => toLocalDateInputValue(today));
-
   const [report, setReport] = useState(null);
+  const [expenses, setExpenses] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [expensesLoading, setExpensesLoading] = useState(false);
   const [error, setError] = useState("");
+  const [expenseError, setExpenseError] = useState("");
+  const [expenseBusy, setExpenseBusy] = useState(false);
+  const [expenseForm, setExpenseForm] = useState({
+    amount: "",
+    category: "",
+    description: "",
+    spentAt: toLocalDateInputValue(today),
+  });
 
   const [sessions, setSessions] = useState(null);
   const [sessionsError, setSessionsError] = useState("");
@@ -86,6 +96,42 @@ export default function ReportsPage({ search, onSearchChange, me }) {
   const [sessionError, setSessionError] = useState("");
   const [sessionBusy, setSessionBusy] = useState(false);
   const [sessionFilter, setSessionFilter] = useState("");
+
+  const loadExpenses = ({ signal } = {}) => {
+    setExpensesLoading(true);
+    return listExpenses({
+      from: `${fromDate} 00:00:00`,
+      to: `${toDate} 23:59:59`,
+      limit: 200,
+      signal,
+    })
+      .then((data) => {
+        setExpenseError("");
+        setExpenses(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
+        setExpenseError(err?.message || "Failed to load expenses.");
+        setExpenses([]);
+      })
+      .finally(() => setExpensesLoading(false));
+  };
+
+  const loadOverview = () => {
+    if (!isAdmin) return;
+
+    setLoading(true);
+    getReportsOverview({
+      from: `${fromDate} 00:00:00`,
+      to: `${toDate} 23:59:59`,
+    })
+      .then((data) => {
+        setError("");
+        setReport(data);
+      })
+      .catch((err) => setError(err?.message || "Failed to generate reports."))
+      .finally(() => setLoading(false));
+  };
 
   const refreshSessions = ({ signal } = {}) => {
     if (!isAdmin) return Promise.resolve([]);
@@ -123,42 +169,60 @@ export default function ReportsPage({ search, onSearchChange, me }) {
   };
 
   useEffect(() => {
-    if (!isAdmin) {
+    const controller = new AbortController();
+    loadExpenses({ signal: controller.signal });
+    if (isAdmin) {
+      loadOverview();
+      Promise.all([refreshSessions({ signal: controller.signal }), refreshShifts({ signal: controller.signal })]);
+    } else {
+      setReport(null);
       setSessions([]);
       setShifts([]);
-      return;
     }
-
-    const controller = new AbortController();
-    Promise.all([refreshSessions({ signal: controller.signal }), refreshShifts({ signal: controller.signal })]);
     return () => controller.abort();
-  }, [isAdmin]);
+  }, [isAdmin, fromDate, toDate]);
 
-  const runOverview = () => {
-    if (!isAdmin) {
-      setError("Admin access required to open reports.");
-      return;
+  const submitExpense = async (e) => {
+    e.preventDefault();
+    setExpenseError("");
+    setExpenseBusy(true);
+
+    try {
+      const created = await createExpense({
+        amount: Number(expenseForm.amount),
+        category: expenseForm.category.trim() || null,
+        description: expenseForm.description.trim(),
+        spentAt: expenseForm.spentAt ? `${expenseForm.spentAt}T12:00:00` : undefined,
+      });
+
+      setExpenses((prev) => [created, ...(Array.isArray(prev) ? prev : [])].slice(0, 200));
+      setExpenseForm({
+        amount: "",
+        category: "",
+        description: "",
+        spentAt: toLocalDateInputValue(today),
+      });
+      if (isAdmin) loadOverview();
+    } catch (err) {
+      setExpenseError(err?.message || "Failed to save expense.");
+    } finally {
+      setExpenseBusy(false);
     }
-
-    setError("");
-    setLoading(true);
-
-    getReportsOverview({
-      from: `${fromDate} 00:00:00`,
-      to: `${toDate} 23:59:59`,
-    })
-      .then((data) => {
-        setReport(data);
-        setError("");
-      })
-      .catch((err) => setError(err?.message || "Failed to generate reports."))
-      .finally(() => setLoading(false));
   };
 
-  useEffect(() => {
-    if (!isAdmin) return;
-    runOverview();
-  }, [isAdmin]);
+  const filteredExpenses = useMemo(() => {
+    const list = Array.isArray(expenses) ? expenses : [];
+    const q = String(search || "").trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((item) => {
+      return (
+        String(item.userName || "").toLowerCase().includes(q) ||
+        String(item.username || "").toLowerCase().includes(q) ||
+        String(item.category || "").toLowerCase().includes(q) ||
+        String(item.description || "").toLowerCase().includes(q)
+      );
+    });
+  }, [expenses, search]);
 
   const filteredProducts = useMemo(() => {
     const list = Array.isArray(report?.products) ? report.products : [];
@@ -181,20 +245,6 @@ export default function ReportsPage({ search, onSearchChange, me }) {
     });
   }, [report, search]);
 
-  const filteredExpenses = useMemo(() => {
-    const list = Array.isArray(report?.expenses) ? report.expenses : [];
-    const q = String(search || "").trim().toLowerCase();
-    if (!q) return list;
-    return list.filter((item) => {
-      return (
-        String(item.userName || "").toLowerCase().includes(q) ||
-        String(item.username || "").toLowerCase().includes(q) ||
-        String(item.category || "").toLowerCase().includes(q) ||
-        String(item.description || "").toLowerCase().includes(q)
-      );
-    });
-  }, [report, search]);
-
   const openCreateSession = () => {
     setNewSessionError("");
     setNewSessionForm({
@@ -206,10 +256,7 @@ export default function ReportsPage({ search, onSearchChange, me }) {
 
   const createSession = () => {
     setNewSessionError("");
-    if (!isAdmin) {
-      setNewSessionError("Admin access required.");
-      return;
-    }
+    if (!isAdmin) return;
 
     const name = newSessionForm.name.trim();
     const note = newSessionForm.note.trim() || null;
@@ -293,19 +340,22 @@ export default function ReportsPage({ search, onSearchChange, me }) {
       <div className="page-header">
         <div className="page-title">
           <h1>All Reports</h1>
-          <p>Revenue, expenses, cash-up, and inventory counts for the selected range.</p>
+          <p>{isAdmin ? "Revenue, expenses, cash-up, and inventory counts for the selected range." : "Enter and review your daily expenses."}</p>
         </div>
       </div>
 
       {error ? <div className="banner" style={{ marginBottom: 12 }}>{error}</div> : null}
+      {expenseError ? <div className="banner" style={{ marginBottom: 12 }}>{expenseError}</div> : null}
 
       <div className="grid">
         <div className="card col-12">
           <div className="card-header">
-            <h3>Reporting Range</h3>
-            <button className="btn primary" type="button" onClick={runOverview} disabled={loading || !isAdmin}>
-              {loading ? "Refreshing..." : "Refresh Reports"}
-            </button>
+            <h3>{isAdmin ? "Reporting Range" : "Expense Range"}</h3>
+            {isAdmin ? (
+              <button className="btn primary" type="button" onClick={loadOverview} disabled={loading}>
+                {loading ? "Refreshing..." : "Refresh Reports"}
+              </button>
+            ) : null}
           </div>
 
           <div className="field-row">
@@ -325,21 +375,123 @@ export default function ReportsPage({ search, onSearchChange, me }) {
                 className="input"
                 value={search}
                 onChange={(e) => onSearchChange?.(e.target.value)}
-                placeholder="Filter products, expenses, cashiers, receipts..."
+                placeholder={isAdmin ? "Filter products, expenses, cashiers, receipts..." : "Filter your expense entries..."}
               />
             </div>
           </div>
         </div>
 
-        {!isAdmin ? (
-          <div className="card col-12">
-            <p style={{ margin: 0, color: "var(--muted)", fontSize: 13 }}>
-              Only admins can open the reporting workspace.
-            </p>
+        <div className={isAdmin ? "card col-6" : "card col-12"}>
+          <div className="card-header">
+            <h3>Log Daily Expense</h3>
+            <span className="badge">{isAdmin ? "Admin" : "Your account"}</span>
           </div>
-        ) : null}
 
-        {report ? (
+          <form className="expense-form" onSubmit={submitExpense}>
+            <div className="field-row">
+              <div className="field" style={{ flex: "0 0 160px" }}>
+                <label>Amount</label>
+                <input
+                  className="input"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={expenseForm.amount}
+                  onChange={(e) => setExpenseForm((prev) => ({ ...prev, amount: e.target.value }))}
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+
+              <div className="field" style={{ flex: "1 1 180px" }}>
+                <label>Category</label>
+                <input
+                  className="input"
+                  value={expenseForm.category}
+                  onChange={(e) => setExpenseForm((prev) => ({ ...prev, category: e.target.value }))}
+                  placeholder="Transport, airtime, supplies..."
+                />
+              </div>
+
+              <div className="field" style={{ flex: "0 0 180px" }}>
+                <label>Date</label>
+                <input
+                  className="input"
+                  type="date"
+                  value={expenseForm.spentAt}
+                  onChange={(e) => setExpenseForm((prev) => ({ ...prev, spentAt: e.target.value }))}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="field" style={{ marginTop: 12 }}>
+              <label>Description</label>
+              <input
+                className="input"
+                value={expenseForm.description}
+                onChange={(e) => setExpenseForm((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="What was bought or paid for?"
+                required
+              />
+            </div>
+
+            <div className="expense-actions">
+              <button className="btn primary" type="submit" disabled={expenseBusy}>
+                {expenseBusy ? "Saving..." : "Save Expense"}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div className={isAdmin ? "card col-6" : "card col-12"}>
+          <div className="card-header">
+            <h3>{isAdmin ? "Recent Expenses" : "Your Recent Expenses"}</h3>
+            <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
+              {expensesLoading ? "Loading..." : `${filteredExpenses.length} entries`}
+            </div>
+          </div>
+
+          <div className="table-wrap" aria-label="Expense ledger">
+            <table className="table table-plain table-wide">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Spent By</th>
+                  <th>Category</th>
+                  <th>Description</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expenses === null || expensesLoading ? (
+                  <tr>
+                    <td colSpan={5}>Loading expenses...</td>
+                  </tr>
+                ) : filteredExpenses.length > 0 ? (
+                  filteredExpenses.map((item) => (
+                    <tr key={item.id}>
+                      <td>{formatDateTime(item.spentAt)}</td>
+                      <td>
+                        <div className="cell-main">{item.userName || "-"}</div>
+                        <div className="cell-sub">{item.username ? `@${item.username}` : "Staff"}</div>
+                      </td>
+                      <td>{item.category || "General"}</td>
+                      <td>{item.description}</td>
+                      <td>{formatCurrency(item.amount || 0)}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5}>No matching expenses.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {!isAdmin ? null : report ? (
           <>
             <div className="card col-3">
               <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 800 }}>Revenue</div>
@@ -406,49 +558,6 @@ export default function ReportsPage({ search, onSearchChange, me }) {
 
             <div className="card col-12">
               <div className="card-header">
-                <h3>Expense Ledger</h3>
-                <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
-                  {filteredExpenses.length} entries
-                </div>
-              </div>
-
-              <div className="table-wrap" aria-label="Expense ledger">
-                <table className="table table-plain table-wide">
-                  <thead>
-                    <tr>
-                      <th>Date</th>
-                      <th>Spent By</th>
-                      <th>Category</th>
-                      <th>Description</th>
-                      <th>Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredExpenses.length > 0 ? (
-                      filteredExpenses.map((item) => (
-                        <tr key={item.id}>
-                          <td>{formatDateTime(item.spentAt)}</td>
-                          <td>
-                            <div className="cell-main">{item.userName || "-"}</div>
-                            <div className="cell-sub">{item.username ? `@${item.username}` : "Staff"}</div>
-                          </td>
-                          <td>{item.category || "General"}</td>
-                          <td>{item.description}</td>
-                          <td>{formatCurrency(item.amount || 0)}</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={5}>No matching expenses.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="card col-12">
-              <div className="card-header">
                 <h3>Inventory and Sales Breakdown</h3>
                 <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
                   {filteredProducts.length} products
@@ -496,10 +605,7 @@ export default function ReportsPage({ search, onSearchChange, me }) {
                               <div className="cell-sub">COGS {formatCurrency(cogs)}</div>
                             </td>
                             <td>
-                              <div
-                                className="cell-main"
-                                style={{ color: profit < 0 ? "var(--danger)" : "var(--ok)" }}
-                              >
+                              <div className="cell-main" style={{ color: profit < 0 ? "var(--danger)" : "var(--ok)" }}>
                                 {formatCurrency(profit)}
                               </div>
                               <div className="cell-sub">Margin {formatPercent(marginPct)}</div>
@@ -570,124 +676,124 @@ export default function ReportsPage({ search, onSearchChange, me }) {
                 </table>
               </div>
             </div>
+
+            <div className="card col-12">
+              <div className="card-header">
+                <h3>Inventory Count Sessions</h3>
+                <button className="btn primary" type="button" onClick={openCreateSession} disabled={!isAdmin}>
+                  New Session
+                </button>
+              </div>
+
+              {sessionsError ? <div className="banner" style={{ marginBottom: 12 }}>{sessionsError}</div> : null}
+
+              <div className="table-wrap" aria-label="Inventory count sessions">
+                <table className="table table-plain table-wide">
+                  <thead>
+                    <tr>
+                      <th>Session</th>
+                      <th>Status</th>
+                      <th>Created</th>
+                      <th>Range</th>
+                      <th>Counted</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sessions === null ? (
+                      <tr>
+                        <td colSpan={6}>Loading sessions...</td>
+                      </tr>
+                    ) : sessions.length > 0 ? (
+                      sessions.map((session) => (
+                        <tr key={session.id}>
+                          <td>
+                            <strong style={{ letterSpacing: -0.2 }}>{session.name}</strong>
+                            <div className="cell-sub">#{session.id}</div>
+                          </td>
+                          <td>
+                            <span className={`badge ${session.status === "closed" ? "ok" : "warn"}`}>{session.status}</span>
+                          </td>
+                          <td>{session.createdAt ? formatDateTime(session.createdAt) : "-"}</td>
+                          <td>
+                            {session.fromAt ? String(session.fromAt).slice(0, 10) : "-"} to{" "}
+                            {session.toAt ? String(session.toAt).slice(0, 10) : "-"}
+                          </td>
+                          <td>
+                            {Number(session.countedCount || 0).toLocaleString()} / {Number(session.itemsCount || 0).toLocaleString()}
+                          </td>
+                          <td>
+                            <button className="btn" type="button" onClick={() => openSession(session.id)} disabled={!isAdmin}>
+                              Open
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6}>No sessions yet.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="card col-12">
+              <div className="card-header">
+                <h3>Shifts / Cash-up</h3>
+                <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
+                  Latest activity
+                </div>
+              </div>
+
+              {shiftsError ? <div className="banner" style={{ marginBottom: 12 }}>{shiftsError}</div> : null}
+
+              <div className="table-wrap" aria-label="Shifts">
+                <table className="table table-plain table-wide">
+                  <thead>
+                    <tr>
+                      <th>Shift</th>
+                      <th>Cashier</th>
+                      <th>Opened</th>
+                      <th>Closed</th>
+                      <th>Sales</th>
+                      <th>Expected</th>
+                      <th>Closing</th>
+                      <th>Variance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shifts === null ? (
+                      <tr>
+                        <td colSpan={8}>Loading shifts...</td>
+                      </tr>
+                    ) : shifts.length > 0 ? (
+                      shifts.slice(0, 20).map((shift) => (
+                        <tr key={shift.id}>
+                          <td>#{shift.id}</td>
+                          <td>{shift.cashierName || shift.cashierId || "-"}</td>
+                          <td>{shift.openedAt ? formatDateTime(shift.openedAt) : "-"}</td>
+                          <td>{shift.closedAt ? formatDateTime(shift.closedAt) : <span className="badge warn">open</span>}</td>
+                          <td>{formatCurrency(shift.salesTotal || 0)}</td>
+                          <td>{formatCurrency(shift.expectedCash || 0)}</td>
+                          <td>{shift.closingCash == null ? "-" : formatCurrency(shift.closingCash)}</td>
+                          <td style={{ color: Number(shift.variance || 0) < 0 ? "var(--danger)" : "var(--ok)", fontWeight: 900 }}>
+                            {shift.variance == null ? "-" : formatCurrency(shift.variance)}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={8}>No shift history available for this view.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </>
         ) : null}
-
-        <div className="card col-12">
-          <div className="card-header">
-            <h3>Inventory Count Sessions</h3>
-            <button className="btn primary" type="button" onClick={openCreateSession} disabled={!isAdmin}>
-              New Session
-            </button>
-          </div>
-
-          {sessionsError ? <div className="banner" style={{ marginBottom: 12 }}>{sessionsError}</div> : null}
-
-          <div className="table-wrap" aria-label="Inventory count sessions">
-            <table className="table table-plain table-wide">
-              <thead>
-                <tr>
-                  <th>Session</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                  <th>Range</th>
-                  <th>Counted</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sessions === null ? (
-                  <tr>
-                    <td colSpan={6}>Loading sessions...</td>
-                  </tr>
-                ) : sessions.length > 0 ? (
-                  sessions.map((session) => (
-                    <tr key={session.id}>
-                      <td>
-                        <strong style={{ letterSpacing: -0.2 }}>{session.name}</strong>
-                        <div className="cell-sub">#{session.id}</div>
-                      </td>
-                      <td>
-                        <span className={`badge ${session.status === "closed" ? "ok" : "warn"}`}>{session.status}</span>
-                      </td>
-                      <td>{session.createdAt ? formatDateTime(session.createdAt) : "-"}</td>
-                      <td>
-                        {session.fromAt ? String(session.fromAt).slice(0, 10) : "-"} to{" "}
-                        {session.toAt ? String(session.toAt).slice(0, 10) : "-"}
-                      </td>
-                      <td>
-                        {Number(session.countedCount || 0).toLocaleString()} / {Number(session.itemsCount || 0).toLocaleString()}
-                      </td>
-                      <td>
-                        <button className="btn" type="button" onClick={() => openSession(session.id)} disabled={!isAdmin}>
-                          Open
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6}>No sessions yet.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="card col-12">
-          <div className="card-header">
-            <h3>Shifts / Cash-up</h3>
-            <div style={{ color: "var(--muted)", fontSize: 12, fontWeight: 700 }}>
-              Latest activity
-            </div>
-          </div>
-
-          {shiftsError ? <div className="banner" style={{ marginBottom: 12 }}>{shiftsError}</div> : null}
-
-          <div className="table-wrap" aria-label="Shifts">
-            <table className="table table-plain table-wide">
-              <thead>
-                <tr>
-                  <th>Shift</th>
-                  <th>Cashier</th>
-                  <th>Opened</th>
-                  <th>Closed</th>
-                  <th>Sales</th>
-                  <th>Expected</th>
-                  <th>Closing</th>
-                  <th>Variance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {shifts === null ? (
-                  <tr>
-                    <td colSpan={8}>Loading shifts...</td>
-                  </tr>
-                ) : shifts.length > 0 ? (
-                  shifts.slice(0, 20).map((shift) => (
-                    <tr key={shift.id}>
-                      <td>#{shift.id}</td>
-                      <td>{shift.cashierName || shift.cashierId || "-"}</td>
-                      <td>{shift.openedAt ? formatDateTime(shift.openedAt) : "-"}</td>
-                      <td>{shift.closedAt ? formatDateTime(shift.closedAt) : <span className="badge warn">open</span>}</td>
-                      <td>{formatCurrency(shift.salesTotal || 0)}</td>
-                      <td>{formatCurrency(shift.expectedCash || 0)}</td>
-                      <td>{shift.closingCash == null ? "-" : formatCurrency(shift.closingCash)}</td>
-                      <td style={{ color: Number(shift.variance || 0) < 0 ? "var(--danger)" : "var(--ok)", fontWeight: 900 }}>
-                        {shift.variance == null ? "-" : formatCurrency(shift.variance)}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={8}>No shift history available for this view.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
 
       <Modal

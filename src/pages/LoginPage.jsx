@@ -32,8 +32,8 @@ export default function LoginPage({ theme, onToggleTheme, onLogin, onBootstrap, 
   }, [mode, setupChecked, setupEnabled]);
 
   const subtitle = useMemo(() => {
-    if (mode === "bootstrap") return "First-time setup: create the initial admin account.";
-    return "Sign in to manage inventory, sales, and receipts.";
+    if (mode === "bootstrap") return "Create the first admin account.";
+    return "";
   }, [mode]);
 
   const submitLogin = async (e) => {
@@ -88,7 +88,7 @@ export default function LoginPage({ theme, onToggleTheme, onLogin, onBootstrap, 
 
           <div className="auth-main-head">
             <div className="auth-main-title">{mode === "bootstrap" ? "Create Admin" : "Sign In"}</div>
-            <div className="auth-main-sub">{subtitle}</div>
+            {subtitle ? <div className="auth-main-sub">{subtitle}</div> : null}
           </div>
 
           {error ? <div className="banner" style={{ marginBottom: 12 }}>{error}</div> : null}
